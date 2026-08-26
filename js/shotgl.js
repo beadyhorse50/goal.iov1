@@ -125,7 +125,7 @@ var GSHOT = (function () {
 
     grab: function (name, o) {
       o = o || {};
-      SHOT.fit(o.w || 390, o.h || 844);
+      SHOT.fit(o.w || 390, o.h || 844, o.dpr);
       startLevel(o.level || 0);
       cameraFollow(world, 0, true);
       renderWorld(world, null, 0);
@@ -136,7 +136,7 @@ var GSHOT = (function () {
 
     seq: function (base, o) {
       o = o || {};
-      SHOT.fit(o.w || 390, o.h || 844);
+      SHOT.fit(o.w || 390, o.h || 844, o.dpr);
       startLevel(o.level || 0);
       cameraFollow(world, 0, true);
       renderWorld(world, null, 0);
@@ -159,7 +159,7 @@ var GSHOT = (function () {
     zoom: function (name, o) {
       o = o || {};
       if (o.level != null) {
-        SHOT.fit(o.w || 390, o.h || 844);
+        SHOT.fit(o.w || 390, o.h || 844, o.dpr);
         startLevel(o.level);
         cameraFollow(world, 0, true);
         renderWorld(world, null, 0);

@@ -26,8 +26,14 @@ var Cam = {
 var COL = {
   /* The two mow directions need real separation or the stripes vanish once the
      depth haze lifts the far end. Lit variants are the sheen at the band edge. */
-  grass1: "#4fbf68", grass2: "#3b9751",
-  grass1Lit: "#5fcd74", grass2Lit: "#45a35a",       // vivid, clearly striped turf
+  /* Deepened and cooled from #4fbf68/#3b9751. Those were mint greens, and with
+     a broad ambient probe lifting every surface toward the sky colour they came
+     out on screen as traffic-light green -- the single strongest arcade tell in
+     the frame. Televised turf is darker and sits closer to a blue-green; the
+     mow stripes then have somewhere to go, because a stripe on a nearly-clipped
+     green has no headroom to be lighter in. */
+  grass1: "#43a259", grass2: "#2f7f45",
+  grass1Lit: "#51b166", grass2Lit: "#388c4e",       // clearly striped turf
   line: "rgba(255,255,255,.95)",
   /* A white torso between two red sleeves read as a sheet of paper taped to
      the player, and no amount of banding fixed it — the problem is a
@@ -76,6 +82,8 @@ var COND = null;
 function setCondition(c) {
   COND = c || null;
   RAIN = null;                     // rebuilt on demand at the new density
+  var k = cond();
+  setSun(k.sunEl == null ? 40 : k.sunEl, k.sunAz == null ? 128 : k.sunAz);
 }
 
 function cond() {
@@ -85,7 +93,30 @@ function cond() {
            sky: ["#1f4f78", "#77b1cf", "#e2edee"] };
 }
 
-var LIGHT = (function () { var m = Math.hypot(-0.32, 0.42, 0.85); return { x: -0.32 / m, y: 0.42 / m, z: 0.85 / m }; })();
+/* THE KEY LIGHT.
+
+   Was (-0.32, 0.42, 0.85): 58 degrees of elevation, which is close to noon.
+   That is a poor light for football. It flattens standing figures — a vertical
+   surface is nearly edge-on to it, so players got almost no direct light and
+   their shadows were stubby blobs directly beneath them.
+
+   Dropped to about 40 degrees, which is a late-afternoon kick-off and the
+   elevation most football is actually televised at. Standing figures now have
+   a lit side and a shaded side, and shadows have length and direction. */
+var LIGHT = { x: 0, y: 0, z: 1, el: 40, az: 128 };
+
+/* Point the key light. Mutating LIGHT in place rather than replacing it matters:
+   both renderers, the canvas shadow projection and the GL uniform upload all
+   hold a reference to this object and read it per frame, so a new object would
+   leave stale copies behind in some of them and not others. */
+function setSun(el, az) {
+  var e = el * Math.PI / 180, a = az * Math.PI / 180, c = Math.cos(e);
+  LIGHT.x = c * Math.cos(a);
+  LIGHT.y = c * Math.sin(a);
+  LIGHT.z = Math.sin(e);
+  LIGHT.el = el; LIGHT.az = az;
+}
+setSun(40, 128);
 
 function initRender() {
   cvs = document.getElementById("game");
@@ -95,14 +126,22 @@ function initRender() {
   window.addEventListener("orientationchange", function () { setTimeout(resize, 250); });
 }
 
+/* RES owns the pixel ratio now, and it moves on its own — the adaptive pass
+   can change it with the window size untouched — so the ratio is part of what
+   counts as "the canvas is the wrong size". */
+function pixelRatio() {
+  return (typeof RES !== "undefined") ? RES.sync()
+                                      : Math.min(window.devicePixelRatio || 1, 2.5);
+}
+
 function checkResize() {
   var w = window.innerWidth || document.documentElement.clientWidth;
   var h = window.innerHeight || document.documentElement.clientHeight;
-  if (w !== Cam.lastW || h !== Cam.lastH) resize();
+  if (w !== Cam.lastW || h !== Cam.lastH || pixelRatio() !== DPR) resize();
 }
 
 function resize() {
-  DPR = Math.min(window.devicePixelRatio || 1, 2.5);
+  DPR = pixelRatio();
   var w = Math.max(1, window.innerWidth || document.documentElement.clientWidth);
   var h = Math.max(1, window.innerHeight || document.documentElement.clientHeight);
   Cam.lastW = window.innerWidth; Cam.lastH = window.innerHeight;

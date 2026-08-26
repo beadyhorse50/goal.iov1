@@ -44,6 +44,7 @@ var GLR = (function () {
   var MESH = {};              // meshes
   var TEX = {};               // textures
   var SHADOW = null;
+  var MAX_TEX = 4096;         // driver ceiling, read once the context exists
 
   /* scratch matrices — allocated once, a renderer that allocates per frame
      hands the GC a sawtooth and the sawtooth is judder */
@@ -119,6 +120,9 @@ var GLR = (function () {
   uniform vec3  uEye;
   uniform vec3  uLight;      // to the light, normalised
   uniform vec3  uSkyH;       // horizon colour: what fog fades toward
+  uniform vec3  uSkyZenith;  // the top of the sky, for the ambient probe
+  uniform vec3  uSunCol;     // key light radiance, graded by the condition
+  uniform float uAmb;        // global ambient scale
   uniform vec4  uCond;       // light, warm, flood, haze
   uniform vec4  uViewport;   // x, y, w, h in device pixels
   uniform float uWet;
@@ -158,15 +162,309 @@ var GLR = (function () {
   /* Percentage-closer filtering over the hardware comparison sampler. Four
      taps in a rotated pattern is enough at this map size; the hardware is
      already doing a 2x2 bilinear compare inside each one. */
+  /* =====================================================================
+     PBR
+     =====================================================================
+
+     Before this, every lit shader in the file carried its own lighting: a
+     hand-picked ambient constant, a hand-picked Blinn-Phong exponent, and a
+     rim term where a Fresnel should have been. Eight shaders, eight different
+     models, none of them energy-conserving. Changing the light meant editing
+     eight places and re-tuning each one by eye, and a material could not be
+     described — only hard-coded.
+
+     This is one model, driven by two numbers per surface: roughness and
+     metalness. It is the standard microfacet BRDF — GGX distribution, Smith
+     height-correlated visibility, Schlick Fresnel — plus an analytic ambient
+     that stands in for an environment probe.
+
+     Why analytic IBL rather than a real cubemap: the sky here IS analytic. It
+     is three colours and a gradient, evaluated in the sky shader. Rendering
+     that to a cubemap, convolving it for irradiance and prefiltering it for
+     specular would be three extra passes to reconstruct information the
+     shader already has in closed form. Sampling the same gradient directly
+     costs a handful of instructions and is exact rather than filtered.
+
+     The floodlights are real point lights now. Previously the "floodlight
+     pools" were a falloff function painted into the ground shader only, so
+     the four rigs lit the grass and nothing else — players, the ball and the
+     goal frame were entirely unaffected by the lights that are supposedly
+     illuminating them. Four overlapping speculars from four rigs is the
+     signature of night football and it was absent. */
+
+  var PBR = `
+  /* ---- the four floodlight rigs, at their real positions ------------- */
+  const vec3 RIG[4] = vec3[4](
+    vec3(-37.0, -44.0, 31.0), vec3( 37.0, -44.0, 31.0),
+    vec3(-37.0,  44.0, 31.0), vec3( 37.0,  44.0, 31.0)
+  );
+
+  const float PI = 3.14159265;
+
+  float d_ggx(float ndh, float a) {
+    float a2 = a * a;
+    float d = ndh * ndh * (a2 - 1.0) + 1.0;
+    return a2 / max(PI * d * d, 1e-7);
+  }
+
+  /* Smith height-correlated visibility, already divided by the 4*ndl*ndv of
+     the BRDF denominator — which is why the specular term below has no
+     division in it. */
+  float v_smith(float ndv, float ndl, float a) {
+    float a2 = a * a;
+    float lv = ndl * sqrt(ndv * ndv * (1.0 - a2) + a2);
+    float ll = ndv * sqrt(ndl * ndl * (1.0 - a2) + a2);
+    return 0.5 / max(lv + ll, 1e-6);
+  }
+
+  vec3 f_schlick(vec3 f0, float u) {
+    float f = pow(1.0 - u, 5.0);
+    return f0 + (vec3(1.0) - f0) * f;
+  }
+
+  /* One light's contribution. 'rough' is perceptual (0 mirror, 1 matte) and is
+     squared into the GGX alpha, which is what makes the parameter behave
+     linearly to the eye. */
+  vec3 lightPBR(vec3 N, vec3 V, vec3 L, vec3 albedo, float rough, float metal,
+                vec3 radiance) {
+    float raw = dot(N, L);
+
+    /* WRAPPED DIFFUSE, and why it is not a cheat here.
+
+       Measured on a standing player at noon: ndl on the torso was exactly 0.
+       The key light sits at 58 degrees elevation, so a vertical surface is
+       edge-on to it and receives no direct sun at all — every player was lit
+       purely by ambient, which is achromatic, which is why the whole squad
+       rendered as grey chrome regardless of kit colour.
+
+       Wrap is the standard treatment for cloth and skin: both scatter light
+       beneath the surface and re-emit it, so the terminator is genuinely softer
+       than Lambert predicts. It is applied to the DIFFUSE lobe only. Specular
+       still uses the true geometric ndl, because a highlight that wraps past
+       the terminator is just wrong. */
+    const float WRAP = 0.30;
+    float ndlD = clamp((raw + WRAP) / (1.0 + WRAP), 0.0, 1.0);
+    float ndl = max(raw, 0.0);
+    if (ndlD <= 0.0) return vec3(0.0);
+    float ndv = max(dot(N, V), 1e-4);
+    vec3  H   = normalize(L + V);
+    float ndh = max(dot(N, H), 0.0);
+    float vdh = max(dot(V, H), 0.0);
+
+    float a = max(rough * rough, 0.0015);
+    vec3  f0 = mix(vec3(0.04), albedo, metal);
+
+    vec3  F = f_schlick(f0, vdh);
+    float D = d_ggx(ndh, a);
+    float Vs = v_smith(ndv, ndl, a);
+
+    vec3 spec = F * D * Vs * ndl;        // true ndl: highlights do not wrap
+    /* energy conservation: what is not reflected specularly is available to
+       diffuse, and metals have no diffuse at all */
+    vec3 kd = (vec3(1.0) - F) * (1.0 - metal);
+    vec3 diff = kd * albedo / PI * ndlD;  // wrapped: cloth and skin scatter
+
+    return (diff + spec) * radiance;
+  }
+
+  /* ---- analytic environment ------------------------------------------
+     Two hemispheres and a horizon band. Sky above, ground bounce below, the
+     horizon colour where they meet — which is exactly the information the sky
+     shader already works from. Diffuse takes the irradiance in the normal's
+     direction; specular takes it in the reflection's, widened by roughness so
+     a rough surface gathers a broad average and a smooth one a narrow one. */
+  /* The sweep width: 1.0 walks the whole ground-to-zenith range, 0.30 stays
+     near the horizon colour. */
+  vec3 envSweep(vec3 dir, float w) {
+    float up = dir.z;
+    float t = clamp(up * w * 0.5 + 0.5, 0.0, 1.0);
+    vec3 ground = uSkyH * 0.42 * vec3(0.86, 0.94, 0.82);   // grass bounce
+    vec3 horizon = uSkyH;
+    vec3 zenith  = uSkyZenith;
+    vec3 c = t < 0.5 ? mix(ground, horizon, t * 2.0)
+                     : mix(horizon, zenith, (t - 0.5) * 2.0);
+    return c;
+  }
+
+  /* Specular: a rough reflection gathers a broad average, a smooth one a narrow
+     one, so the sweep narrows as roughness rises. */
+  vec3 envAt(vec3 dir, float rough) {
+    return envSweep(dir, mix(1.0, 0.30, clamp(rough, 0.0, 1.0)));
+  }
+
+  /* AMBIENT IRRADIANCE, and this is not the same lookup.
+
+     Diffuse ambient was calling envAt(N, 1.0), which -- because roughness 1.0
+     narrows the sweep to 0.30 -- evaluated the sky gradient across only
+     t = 0.35..0.65 no matter which way the surface faced. The consequence was
+     that the ambient term was very nearly CONSTANT over a whole figure, and
+     since the camera sits behind the players and the sun in front of them, that
+     constant was most of what lit them. They came out flat: a red shirt with no
+     top-to-bottom falloff, which is exactly the look of a cut-out.
+
+     Irradiance is a cosine-weighted integral over the hemisphere, so it does
+     vary strongly with the normal -- an upward face collects sky, a downward
+     face collects grass bounce. 0.70 is that integral's effective sweep over a
+     linear gradient: not the full range, because the cosine weighting pulls in
+     light from around the normal, but nowhere near as narrow as 0.30. This is
+     where a figure's form comes from when it is not in direct sun. */
+  vec3 envIrradiance(vec3 N) {
+    return envSweep(N, 0.70);
+  }
+
+  /* PRE-INTEGRATED ENVIRONMENT BRDF (Karis' analytic fit).
+
+     This exists because the obvious thing is wrong. Using a bare Schlick
+     Fresnel for the ambient specular sends F to 1.0 at grazing angles, so
+     every curved dielectric surface becomes a mirror around its silhouette —
+     and a footballer is nothing but curved surfaces. The result rendered the
+     whole squad as polished chrome: the kit colour vanished under a white
+     rim and the players looked like robots.
+
+     A real split-sum IBL multiplies by a pre-integrated DFG term that folds in
+     the distribution and the geometry factor as well as Fresnel, and that term
+     does NOT approach 1. This is the standard closed-form fit to it, so the
+     ambient specular stays bounded without a lookup texture. */
+  vec2 envBRDF(float ndv, float rough) {
+    const vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
+    const vec4 c1 = vec4( 1.0,  0.0425,  1.040, -0.040);
+    vec4 r = rough * c0 + c1;
+    float a004 = min(r.x * r.x, exp2(-9.28 * ndv)) * r.x + r.y;
+    return vec2(-1.04, 1.04) * a004 + r.zw;
+  }
+
+  vec3 ambientPBR(vec3 N, vec3 V, vec3 albedo, float rough, float metal, float ao) {
+    float ndv = max(dot(N, V), 1e-4);
+    vec3 f0 = mix(vec3(0.04), albedo, metal);
+    /* diffuse still uses a plain Fresnel complement — that part is correct */
+    vec3 F = f_schlick(f0, ndv);
+
+    vec3 irr = envIrradiance(N);
+    /* FLOODLIT BOUNCE.
+
+       At night the sky contributes almost nothing — the probe colours are near
+       black by design — so a player lit only by four point lights and a dead
+       sky came out at RGB(51,48,52): dark and, worse, desaturated, because the
+       specular was carrying the whole surface and the diffuse had nothing to
+       work with.
+
+       A floodlit stadium is not a dark room with four lamps in it. It is a
+       bright bowl: the light hits the turf and the stands and bounces back up
+       from every direction, which is why players on television at night are
+       evenly lit rather than dramatically side-lit. This is that bounce, and
+       it is what puts the colour back in the kit. */
+    irr += vec3(0.62, 0.66, 0.72) * uCond.z * 0.30;
+    vec3 kd = (vec3(1.0) - F) * (1.0 - metal);
+    vec3 diff = kd * albedo * irr;
+
+    vec3 R = reflect(-V, N);
+    vec3 pre = envAt(R, rough);
+    vec2 ab = envBRDF(ndv, rough);
+    vec3 spec = pre * (f0 * ab.x + ab.y);
+
+    return (diff + spec) * ao * uAmb;
+  }
+
+  /* ---- the floodlights ------------------------------------------------
+     Four point lights, no shadows. Intensity follows the condition's flood
+     term, so they are almost nothing at three in the afternoon and are doing
+     all the work at night. Inverse-square with a soft minimum so a surface
+     directly under a rig does not blow out.
+
+     No shadow maps for these on purpose: four more depth passes would cost
+     more than the whole rest of the frame, and the one directional shadow
+     already anchors every object to the ground. What these buy is the
+     four-way specular and the four-way falloff, which is what the eye reads
+     as floodlighting. */
+  vec3 floodPBR(vec3 P, vec3 N, vec3 V, vec3 albedo, float rough, float metal) {
+    float amt = uCond.z;
+    if (amt < 0.02) return vec3(0.0);
+    vec3 sum = vec3(0.0);
+    for (int i = 0; i < 4; i++) {
+      vec3 d = RIG[i] - P;
+      float dist2 = max(dot(d, d), 36.0);
+      vec3 L = d * inversesqrt(dist2);
+      /* 1/r^2, normalised so a rig at ~55 m reads as one unit */
+      float atten = 3000.0 / dist2;
+      sum += lightPBR(N, V, L, albedo, rough, metal,
+                      vec3(1.0, 0.972, 0.906) * atten * amt * 0.55);
+    }
+    return sum;
+  }
+
+  /* The whole surface, in one call. Everything lit in this renderer goes
+     through here, so the light rig is described once. */
+  vec3 surfacePBR(vec3 P, vec3 N, vec3 V, vec3 albedo,
+                  float rough, float metal, float ao, float sh) {
+    vec3 sun = lightPBR(N, V, uLight, albedo, rough, metal, uSunCol) * sh;
+    vec3 amb = ambientPBR(N, V, albedo, rough, metal, ao);
+    vec3 fld = floodPBR(P, N, V, albedo, rough, metal);
+    return sun + amb + fld;
+  }
+  `;
+
   var SHADOW_CHUNK = `
   uniform highp sampler2DShadow uShadow;
   uniform mat4 uLightVP;
   uniform float uShadowTexel;
+  uniform vec4 uStand;        // xy = occluding lip half-extents, z = its height, w = penumbra
+
+  /* THE STAND SHADOW.
+
+     A stand 17 m high with the sun at 40 degrees throws about twenty metres of
+     shadow onto the grass. In real football that band is one of the most
+     recognisable things in the frame: it splits the pitch, it tells you the
+     time of day, and it is the reason a wide shot has any depth in it at all.
+     Every frame this renderer produced was lit as though the bowl were made of
+     glass, and a uniformly lit pitch from touchline to touchline is a strong,
+     immediate tell that a stadium is not real.
+
+     It does not belong in the shadow map. That map is a 2048 ortho sized to the
+     play area to keep player self-shadowing sharp; widening it to enclose a
+     190 m bowl would cost most of its resolution and blur exactly the contact
+     shadows it exists for. The occluder here is also known in closed form -- a
+     rounded rectangle at a fixed height -- so it can simply be intersected.
+
+     Ray-box exit against the roof's inner lip: march from the surface toward
+     the sun, and find where that ray crosses the vertical plane through the
+     lip. If it gets there below the lip, the lip is in the way. The corner
+     radius is ignored on purpose -- at 20 m it changes the band by less than
+     its own penumbra.
+
+     This lives inside shadowAt() so that the ground, the players, the ball and
+     the goal frame all pick it up from the call sites they already have, and so
+     that a player running into the shadow darkens with the grass underneath
+     them instead of staying lit on top of it. */
+  float standShadow(vec3 wp) {
+    if (uLight.z < 0.05) return 0.0;
+    vec2 L = uLight.xy;
+    float tx = L.x > 0.0 ? (uStand.x - wp.x) / max(L.x,  1e-4)
+                         : (-uStand.x - wp.x) / min(L.x, -1e-4);
+    float ty = L.y > 0.0 ? (uStand.y - wp.y) / max(L.y,  1e-4)
+                         : (-uStand.y - wp.y) / min(L.y, -1e-4);
+    /* the nearer crossing is the one that matters */
+    float t = min(tx, ty);
+    if (t <= 0.0) return 0.0;
+    float h = wp.z + uLight.z * t;
+    /* A penumbra that widens with distance to the occluder. The sun is 0.53
+       degrees across, so the umbra grows by tan(0.53) ~ 0.0092 per metre of
+       throw -- and that coefficient is not a free parameter. A first attempt
+       used 0.055, six times too wide, and multiplied it again by 1.6: at a 9
+       degree sun the ray runs 100 m to the roof lip, so the half-penumbra came
+       out at 9.4 m of HEIGHT, which at that elevation smears across 56 m of
+       grass in each direction. The edge did not soften, it dissolved -- and
+       what was left was a 50% dimming of the entire pitch that looked like a
+       flat exposure change rather than a shadow. */
+    float soft = uStand.w * (0.25 + t * 0.0092);
+    return 1.0 - smoothstep(uStand.z - soft, uStand.z + soft, h);
+  }
 
   float shadowAt(vec3 wp, float ndl) {
+    float stand = standShadow(wp);
     vec4 lp = uLightVP * vec4(wp, 1.0);
     vec3 q = lp.xyz / lp.w * 0.5 + 0.5;
-    if (q.x < 0.001 || q.x > 0.999 || q.y < 0.001 || q.y > 0.999 || q.z > 1.0) return 1.0;
+    if (q.x < 0.001 || q.x > 0.999 || q.y < 0.001 || q.y > 0.999 || q.z > 1.0)
+      return 1.0 - stand;
     /* slope-scaled bias: a surface edge-on to the light needs more of it, and
        a constant bias big enough for the worst case detaches every shadow */
     float b = mix(0.0016, 0.0006, clamp(ndl, 0.0, 1.0));
@@ -177,7 +475,7 @@ var GLR = (function () {
     s += texture(uShadow, vec3(q.xy + vec2( 0.3, -0.7) * t, q.z));
     s += texture(uShadow, vec3(q.xy + vec2( 0.7,  0.3) * t, q.z));
     s += texture(uShadow, vec3(q.xy + vec2(-0.3,  0.7) * t, q.z));
-    return s * 0.25;
+    return s * 0.25 * (1.0 - stand);
   }
   `;
 
@@ -252,7 +550,7 @@ var GLR = (function () {
     var CR = PITCH.centreR.toFixed(3), KR = PITCH.cornerR.toFixed(3);
     var SUR = (typeof SURROUND !== "undefined" ? SURROUND : 6).toFixed(2);
 
-    return HEAD + COMMON + SHADOW_CHUNK + `
+    return HEAD + COMMON + PBR + SHADOW_CHUNK + `
   in vec3 vW;
   out vec4 oCol;
   uniform vec3 uG1, uG2;      // the two mow colours
@@ -367,22 +665,30 @@ var GLR = (function () {
     float apron = smoothstep(0.0, 1.4, max(abs(p.x) - (HW + ${SUR}), abs(p.y) - (HL + ${SUR})));
     base = mix(base, vec3(0.135, 0.150, 0.132), apron);
 
-    vec3 N = vec3(0.0, 0.0, 1.0);
+    /* TURF NORMALS.
+
+       A pitch is not a plane. The mow bands are grass lying in alternating
+       directions, and that is a NORMAL difference, not a colour difference —
+       which is why the stripes on a real pitch invert as you walk round it and
+       why painting them as two greens never quite reads. Tilting the normal
+       along the band direction gives the alternation for free from the
+       lighting, and gives the anisotropic sheen that makes it look like grass
+       rather than felt. */
+    float bandPhase = p.y / (${HL} * 2.0 / uBands);
+    float bandDir = mod(floor(bandPhase), 2.0) * 2.0 - 1.0;
+    vec3 N = normalize(vec3(0.0, bandDir * 0.13, 1.0));
+    /* fine blade noise, so the surface is not mirror-flat between bands */
+    N = normalize(N + vec3(sin(p.x * 31.0) * 0.03, cos(p.y * 27.0) * 0.03, 0.0));
+
     float ndl = max(dot(N, uLight), 0.0);
     float sh = shadowAt(vW, ndl);
 
-    /* key + sky ambient. The ambient is tinted by the sky, which is what
-       stops a night pitch reading as a grey pitch. */
-    vec3 lit = base * (0.52 + 0.62 * ndl * sh) + uSkyH * base * 0.16;
-
-    /* wet turf: a broad sheen plus a tight highlight, both cut by shadow */
-    if (uWet > 0.01) {
-      vec3 Hv = normalize(uLight + V);
-      float spec = pow(max(dot(N, Hv), 0.0), 48.0);
-      lit *= 1.0 - uWet * 0.22;
-      lit += vec3(0.85, 0.93, 1.0) * spec * uWet * 1.35 * sh;
-      lit += uSkyH * uWet * 0.10 * pow(1.0 - max(dot(N, V), 0.0), 3.0);
-    }
+    /* Grass: rough and fully dielectric. Wet grass is much smoother, which is
+       the entire reason a wet pitch reads as wet — it is a roughness change,
+       not a colour change. */
+    float rough = mix(0.86, 0.30, uWet);
+    if (uWet > 0.01) base *= 1.0 - uWet * 0.18;
+    vec3 lit = surfacePBR(vW, N, V, base, rough, 0.0, 1.0, sh);
 
     /* FLOODLIGHT POOLS.
 
@@ -396,15 +702,16 @@ var GLR = (function () {
     pool += 1.0 - smoothstep(0.0, 1.0, length((p - vec2( rig0.x, -rig0.y)) / vec2(31.0, 27.0)));
     pool += 1.0 - smoothstep(0.0, 1.0, length((p - vec2(-rig0.x,  rig0.y)) / vec2(31.0, 27.0)));
     pool += 1.0 - smoothstep(0.0, 1.0, length((p - vec2( rig0.x,  rig0.y)) / vec2(31.0, 27.0)));
-    lit += vec3(1.0, 0.988, 0.886) * pool * (0.014 + uCond.z * 0.085) * (1.0 - apron);
-    /* wet turf under floodlights is mostly reflection, not diffuse */
-    if (uWet > 0.01) {
-      vec3 Hp = normalize(uLight + V);
-      lit += vec3(1.0, 0.97, 0.88) * pow(max(dot(N, Hp), 0.0), 90.0) * pool * uWet * uCond.z * 0.8;
-    }
+    /* The rigs are real point lights in surfacePBR() now, so this is only the
+       broad wash on the grass that a point light cannot give: the diffuse
+       spill across the whole pool, which on a pitch this size is much wider
+       than inverse-square from a 31 m rig would produce. */
+    lit += vec3(1.0, 0.988, 0.886) * pool * (0.008 + uCond.z * 0.030) * (1.0 - apron);
 
     float m = markings(p, aa) * (1.0 - apron) * (1.0 - wear * 0.45);
-    vec3 lineC = vec3(0.94, 0.96, 0.95) * (0.62 + 0.5 * ndl * sh);
+    /* markings are matte paint, so they get the same model at high roughness */
+    vec3 lineC = surfacePBR(vW, vec3(0.0, 0.0, 1.0), V, vec3(0.95, 0.96, 0.95),
+                            0.72, 0.0, 1.0, sh);
     lit = mix(lit, lineC, m);
 
     oCol = vec4(grade(applyFog(lit, dist)), 1.0);
@@ -429,7 +736,7 @@ var GLR = (function () {
   }
   `;
 
-  var STAND_FS = HEAD + COMMON + `
+  var STAND_FS = HEAD + COMMON + PBR + `
   in vec3 vW, vN;
   in vec2 vUv;
   out vec4 oCol;
@@ -569,7 +876,7 @@ var GLR = (function () {
   }
   `;
 
-  var CROWD_FS = HEAD + COMMON + `
+  var CROWD_FS = HEAD + COMMON + PBR + `
   in vec3 vCol;
   in vec2 vQ;
   in vec3 vW;
@@ -605,9 +912,63 @@ var GLR = (function () {
     vec3 c = mix(vCol, skin, head > 0.5 ? 1.0 : 0.0);
     c = mix(c, mix(vCol, skin, 0.22), small);
 
-    /* the bank is lit from above and shaded by the roof above the back rows */
-    float shade = 0.60 + 0.40 * fract(vSeed * 3.77);
-    c *= 0.72 + 0.42 * shade;
+    /* ---- LIGHTING THE BOWL ---------------------------------------------
+
+       This used to be  c *= 0.72 + 0.42 * shade  -- a multiplier that lands
+       between 0.97 and 1.14 -- so every spectator was drawn at full albedo,
+       always, in every condition. In daylight that merely looked flat. At
+       night it was ruinous: measured, the stands came out BRIGHTER than the
+       floodlit pitch. A stadium never looks like that. The pitch is the lit
+       object and the bowl is the dark surround, and getting that one
+       relationship backwards is what stopped these frames reading as
+       broadcast football more than any missing texture did.
+
+       The bowl is now lit by the same rig as everything else. The row index
+       comes back out of the seat's height, which is all that is needed to
+       know how far back into the rake -- and therefore how far under the roof
+       -- a spectator sits. */
+    float row  = clamp((vW.z - 1.55) / 0.46, 0.0, 26.0);
+    float back = row * 0.84 + 0.46;              // metres back along the rake
+    float roof = smoothstep(3.5, 14.0, back);    // a gradient, not a line
+
+    /* A seat does not see a hemisphere of sky: the rake in front cuts off the
+       bottom of it and the roof cuts off the top, so skylight falls away as the
+       rows go back. That is the gradient in every televised stand.
+
+       It must be a GRADIENT though. A first attempt took skylight down to 0.14
+       under the roof on a smoothstep only 3.5 m wide, and the upper tier went
+       to flat silhouette along a hard straight line -- worse than the flat
+       crowd it replaced, because now the stadium looked broken rather than
+       merely unlit. */
+    float skyVis = mix(0.95, 0.40, roof);
+    vec3 amb = envIrradiance(vec3(0.0, 0.0, 1.0)) * skyVis * uAmb * 0.70;
+
+    /* And the pitch is a very large, very bright lambertian reflector filling
+       the lower half of every spectator's view. It reaches under the roof where
+       the sky cannot, which is the actual reason a covered stand still reads as
+       twenty thousand people and not as a black band. */
+    amb += envIrradiance(vec3(0.0, 0.0, -1.0)) * uAmb * 0.34;
+
+    /* Direct sun reaches the open front rows only: the band of light across
+       the lower tier that reads as an afternoon kick-off in a single glance. */
+    vec3 key = uSunCol * (1.0 - roof) * (0.28 + 0.52 * uCond.x) * 0.40;
+
+    /* At night the rigs are above and behind the roof line, so the bowl is lit
+       indirectly -- dim, even, and cooler than the pitch. */
+    vec3 fld = vec3(0.82, 0.87, 1.0) * uCond.z * 0.26;
+
+    /* per-seat variation, kept small: this is cloth and posture, not lighting */
+    float jit = 0.88 + 0.24 * fract(vSeed * 3.77);
+
+    c *= (amb + key + fld) * jit;
+
+    /* The back of the bowl falls away further still. Real stands do, and it is
+       what places the pitch IN FRONT OF the crowd instead of pasted onto it. */
+    c *= mix(1.0, 0.78, smoothstep(1.0, 22.0, row));
+
+    /* Finally pull a little saturation out, so that with eighteen thousand
+       shirts on screen no single one competes with a kit on the pitch. */
+    c = mix(vec3(dot(c, vec3(0.299, 0.587, 0.114))), c, 0.84);
 
     float d = length(uEye - vW);
     oCol = vec4(grade(applyFog(c, d)), 1.0);
@@ -773,7 +1134,10 @@ var GLR = (function () {
   var BOARD_M = 5.2;              // metres per board, as the canvas renderer uses
   function boardTexture() {
     var ads = (typeof ADS !== "undefined") ? ADS : [{ t: "goal.io", bg: "#f4f7fa", fg: "#12305a" }];
-    var PW = 256, PH = 96;
+    /* 512 across a 5.2 m board. At the old 256 the boards were the softest
+       thing in a 4K frame, and they sit right behind the goal where the eye
+       already is. */
+    var PW = 512, PH = 192;
     var c = document.createElement("canvas");
     c.width = PW * ads.length; c.height = PH;
     var x = c.getContext("2d");
@@ -893,11 +1257,12 @@ var GLR = (function () {
   in vec4 aIns;      // row 0: R * hw   , tx
   in vec4 aIns2;     // row 1: -U * halfLen, ty
   in vec4 aIns3;     // row 2: F * hd   , tz
-  in vec4 aCol;
+  in vec4 aCol;      // rgb = albedo, a = roughness
   in vec4 aTap;      // x = taper at y=-1, y = taper at y=+1
   uniform mat4 uVP;
   out vec3 vW, vN;
   out vec3 vCol;
+  out float vRough;
   void main() {
     /* taper across the bone's length, in object space */
     float t = (aPos.y + 1.0) * 0.5;
@@ -915,51 +1280,40 @@ var GLR = (function () {
     vW = w;
     vN = normalize(nn);
     vCol = aCol.rgb;
+    vRough = aCol.a;
     gl_Position = uVP * vec4(w, 1.0);
   }
   `;
 
-  var PLAYER_FS = HEAD + COMMON + SHADOW_CHUNK + `
+  var PLAYER_FS = HEAD + COMMON + PBR + SHADOW_CHUNK + `
   in vec3 vW, vN;
   in vec3 vCol;
+  in float vRough;
   out vec4 oCol;
   void main() {
     vec3 n = normalize(vN);
+    vec3 V = normalize(uEye - vW);
     float ndl = dot(n, uLight);
-
-    /* Wrapped diffuse. A hard lambert term makes a limb's shaded side go flat
-       black, and on a figure this small that reads as a hole rather than as
-       shadow. Wrapping keeps the form. */
-    float d = clamp((ndl + 0.35) / 1.35, 0.0, 1.0);
 
     /* NORMAL-OFFSET SHADOW LOOKUP.
 
-       Players cast into the shadow map now, which means they also SAMPLE it at
+       Players cast into the shadow map, which means they also SAMPLE it at
        their own surface — and a depth bias alone is not enough at this scale.
        Measured before this: the striker's shirt rendered at 44% of its base
        colour because the torso was shadowing itself. Pushing the sample point
-       out along the normal moves it clear of the surface that wrote the depth,
-       which is the standard fix and costs one add. */
+       out along the normal moves it clear of the surface that wrote the depth. */
     float sh = shadowAt(vW + n * 0.045, ndl);
 
-    /* Ambient occlusion is faked from height: a boot is in more contact with
-       the turf than a head is, so it receives less sky. It costs one multiply
-       and it is most of what grounds a figure. */
+    /* Contact occlusion from height: a boot is in more contact with the turf
+       than a head is, so it receives less sky. */
     float ao = mix(0.74, 1.0, clamp(vW.z / 1.4, 0.0, 1.0));
 
-    /* Range matched to the canvas renderer's 0.60 - 1.02, which is what the
-       kit colours were chosen against. A physically tidier 0.34 ambient looked
-       correct in isolation and made every player muddy next to the turf. */
-    vec3 lit = vCol * (0.55 * ao + 0.55 * d * mix(0.45, 1.0, sh));
-
-    /* a cool rim from the sky, which separates a dark kit from a dark crowd */
-    vec3 V = normalize(uEye - vW);
-    float rim = pow(1.0 - clamp(dot(n, V), 0.0, 1.0), 3.0);
-    lit += vec3(0.34, 0.44, 0.58) * rim * 0.22;
-
+    /* MATERIALS. vRough carries the surface: a shirt is matte, skin has a
+       little sheen, a boot is near-patent. These are now real roughness values
+       feeding a real BRDF rather than an exponent picked by eye per shader. */
+    vec3 lit = surfacePBR(vW, n, V, vCol, vRough, 0.0, ao, sh);
     lit = grade(lit);
-    float dist = length(uEye - vW);
-    oCol = vec4(applyFog(lit, dist), 1.0);
+    oCol = vec4(applyFog(lit, length(uEye - vW)), 1.0);
   }
   `;
 
@@ -969,13 +1323,14 @@ var GLR = (function () {
   in vec3 aPos;
   in vec3 aNrm;
   in vec4 aIns;
-  in vec4 aCol;
+  in vec4 aCol;      // rgb = albedo, a = roughness
   uniform mat4 uVP;
   out vec3 vW, vN;
   out vec3 vCol;
+  out float vRough;
   void main() {
     vec3 w = aIns.xyz + aPos * aIns.w;
-    vW = w; vN = normalize(aNrm); vCol = aCol.rgb;
+    vW = w; vN = normalize(aNrm); vCol = aCol.rgb; vRough = aCol.a;
     gl_Position = uVP * vec4(w, 1.0);
   }
   `;
@@ -993,7 +1348,7 @@ var GLR = (function () {
      the head instead of sliding across it. The canvas version had to be
      switched off below 74 px because the marks merged into a dark band; this
      just gets smaller. */
-  var HEAD_FS = HEAD + COMMON + SHADOW_CHUNK + `
+  var HEAD_FS = HEAD + COMMON + PBR + SHADOW_CHUNK + `
   in vec3 vW, vN;
   in vec3 vCol;      // skin
   in vec3 vHair;
@@ -1050,15 +1405,15 @@ var GLR = (function () {
     }
 
     vec3 n = normalize(vN);
-    float ndl = dot(n, uLight);
-    float d = clamp((ndl + 0.35) / 1.35, 0.0, 1.0);
-    float sh = shadowAt(vW + n * 0.045, ndl);
-    vec3 lit = base * (0.55 + 0.55 * d * mix(0.45, 1.0, sh));
-
     vec3 V = normalize(uEye - vW);
-    float rim = pow(1.0 - clamp(dot(n, V), 0.0, 1.0), 3.0);
-    lit += vec3(0.34, 0.44, 0.58) * rim * 0.20;
-
+    float ndl = dot(n, uLight);
+    float sh = shadowAt(vW + n * 0.045, ndl);
+    /* Skin is a dielectric with a broad sheen; hair is rougher and darker.
+       Blending the roughness with the hair mask means the crown catches light
+       differently from the forehead, which is most of what stops a head
+       reading as a painted ball. */
+    float rough = mix(0.52, 0.78, hairMask);
+    vec3 lit = surfacePBR(vW, n, V, base, rough, 0.0, 1.0, sh);
     lit = grade(lit);
     oCol = vec4(applyFog(lit, length(uEye - vW)), 1.0);
   }
@@ -1136,7 +1491,7 @@ var GLR = (function () {
   }
   `;
 
-  var BALL_FS = HEAD + COMMON + `
+  var BALL_FS = HEAD + COMMON + PBR + SHADOW_CHUNK + `
   in vec3 vW, vN, vL;
   out vec4 oCol;
   uniform vec3 uBase, uPanel;
@@ -1175,20 +1530,18 @@ var GLR = (function () {
     vec3 c = mix(uBase, uPanel, pent);
     c *= 1.0 - seam * 0.45;
 
+    /* A match ball is coated polyurethane: smooth, dielectric, and it picks up
+       a wet sheen. The seams are slightly rougher than the panels. */
     float ndl = max(dot(N, uLight), 0.0);
-    vec3 Hv = normalize(uLight + V);
-    float spec = pow(max(dot(N, Hv), 0.0), 42.0) * (0.30 + uWet * 0.9);
-    float rim = pow(1.0 - max(dot(N, V), 0.0), 3.0);
-
-    vec3 lit = c * (0.40 + 0.75 * ndl) + uSkyH * c * 0.22;
-    lit += vec3(1.0, 0.98, 0.94) * spec;
-    lit += uSkyH * rim * 0.28;
+    float sh = shadowAt(vW, ndl);
+    float rough = mix(0.34, 0.16, uWet) + seam * 0.22;
+    vec3 lit = surfacePBR(vW, N, V, c, rough, 0.0, 1.0, sh);
 
     oCol = vec4(grade(applyFog(lit, dist)), 1.0);
   }
   `;
 
-  var METAL_FS = HEAD + COMMON + `
+  var METAL_FS = HEAD + COMMON + PBR + SHADOW_CHUNK + `
   in vec3 vW, vN, vL;
   out vec4 oCol;
   uniform vec3 uBase;
@@ -1197,13 +1550,13 @@ var GLR = (function () {
     vec3 V = uEye - vW;
     float dist = length(V);
     V /= dist;
+    /* A goalpost is gloss-painted aluminium: very smooth, dielectric. The
+       highlight running down it is the whole reason it reads as round rather
+       than as a white stripe, and a real BRDF gives that highlight the right
+       shape instead of a tuned exponent. */
     float ndl = max(dot(N, uLight), 0.0);
-    vec3 Hv = normalize(uLight + V);
-    float spec = pow(max(dot(N, Hv), 0.0), 70.0);
-    /* a goalpost is a gloss-white cylinder: the highlight running down it is
-       the whole reason it reads as round rather than as a white stripe */
-    vec3 lit = uBase * (0.46 + 0.62 * ndl) + uSkyH * uBase * 0.20;
-    lit += vec3(1.0) * spec * 0.75;
+    float sh = shadowAt(vW, ndl);
+    vec3 lit = surfacePBR(vW, N, V, uBase, 0.20, 0.0, 1.0, sh);
     oCol = vec4(grade(applyFog(lit, dist)), 1.0);
   }
   `;
@@ -1211,7 +1564,7 @@ var GLR = (function () {
   /* The net is a surface, not a texture on a quad: alpha comes from a grid in
      surface coordinates so the cord thickness is right at every distance, and
      the back panel is denser than the sides exactly as a real net is. */
-  var NET_FS = HEAD + COMMON + `
+  var NET_FS = HEAD + COMMON + PBR + `
   in vec3 vW, vN, vL;
   in vec2 vUv;
   out vec4 oCol;
@@ -1406,6 +1759,13 @@ var GLR = (function () {
     gl = GLX.init(glc);
     if (!gl) { console.warn("[gl] no WebGL2 — staying on canvas"); return false; }
 
+    /* What this driver will actually allocate. A 4K portrait buffer is 3840 on
+       its long edge and plenty of mobile GPUs stop at 4096, so this is a real
+       constraint rather than a formality — and exceeding it fails silently. */
+    MAX_TEX = Math.min(gl.getParameter(gl.MAX_TEXTURE_SIZE),
+                       gl.getParameter(gl.MAX_VIEWPORT_DIMS)[0]) || 4096;
+    if (typeof RES !== "undefined") { RES.limit(MAX_TEX); RES.target(RES.T4K); }
+
     P.sky    = GLX.prog("sky", SKY_VS, SKY_FS);
     P.ground = GLX.prog("ground", GROUND_VS, groundFrag());
     P.ball   = GLX.prog("ball", SOLID_VS, BALL_FS);
@@ -1519,7 +1879,7 @@ var GLR = (function () {
   }
 
   function size() {
-    var d = Math.min(window.devicePixelRatio || 1, 2.5);
+    var d = dpr();
     var w = Math.max(1, window.innerWidth || document.documentElement.clientWidth);
     var h = Math.max(1, window.innerHeight || document.documentElement.clientHeight);
     W = Math.round(w * d); H = Math.round(h * d);
@@ -1527,6 +1887,22 @@ var GLR = (function () {
       glc.width = W; glc.height = H;
       glc.style.width = w + "px"; glc.style.height = h + "px";
     }
+    sizeShadow();
+  }
+
+  /* The shadow map has to keep pace with the picture. At 4K a 1024 map over a
+     44 m box puts roughly one shadow texel under every four screen pixels of
+     the ball's contact shadow, and it reads as a staircase. Reallocating is a
+     depth texture and a framebuffer, and RES only moves the ratio every 30-odd
+     frames at the fastest, so this is not a per-frame cost. */
+  function sizeShadow() {
+    if (typeof RES === "undefined" || !SHADOW) return;
+    var want = RES.shadow(MAX_TEX);
+    if (want === SHADOW.size) return;
+    var next = GLX.depthTarget(want);
+    if (!next) return;                 // keep the one that works
+    GLX.freeTarget(SHADOW);
+    SHADOW = next;
   }
 
   /* ==================================================================== */
@@ -1586,7 +1962,14 @@ var GLR = (function () {
     var d = 60;
     var le = [cx + L.x * d, cy + L.y * d, L.z * d];
     M4.look(mLightV, le, [cx, cy, 0], [0, 0, 1]);
-    M4.ortho(mLightP, -SHADOW_HALF, SHADOW_HALF, -SHADOW_HALF, SHADOW_HALF, 1, d * 2.2);
+    /* A 22 m box is ample at 40 degrees, where a standing player throws a 2 m
+       shadow. At golden hour the sun is at 15 and that same player throws 6.7 m,
+       so a fixed box clips the far end of every shadow -- and shadowAt() returns
+       1.0 outside the map, meaning the shadow does not soften at the edge, it
+       simply stops. Widen with the sun's own cotangent and the box always holds
+       whatever the light is doing. */
+    var reach = SHADOW_HALF * clamp(0.84 / Math.max(L.z, 0.20), 1.0, 2.1);
+    M4.ortho(mLightP, -reach, reach, -reach, reach, 1, d * 2.6);
     M4.mul(mLightVP, mLightP, mLightV);
   }
 
@@ -1596,13 +1979,69 @@ var GLR = (function () {
     gl.uniform3f(prg.u.uEye, eye[0], eye[1], eye[2]);
     gl.uniform3f(prg.u.uLight, LIGHT.x, LIGHT.y, LIGHT.z);
     gl.uniform3f(prg.u.uSkyH, c3[0], c3[1], c3[2]);
+
+    /* THE LIGHT RIG, as radiance rather than as a set of tuned constants.
+
+       The key light's colour and strength come from the condition: bright and
+       warm at golden hour, dim and blue-ish at night when the sun is gone and
+       the rigs are doing the work. The zenith feeds the ambient probe, so the
+       sky lights the scene from above and the grass bounces up from below —
+       which is what a real environment probe would give, evaluated in closed
+       form because this sky IS closed form. */
+    GLX.col3(C.sky[0], c1);
+    gl.uniform3f(prg.u.uSkyZenith, c1[0], c1[1], c1[2]);
+
+    /* Sun radiance. Above 1 on a bright day on purpose: the post chain has an
+       HDR buffer and a highlight shoulder, so a specular can be brighter than
+       white and roll off instead of clipping. That is the whole point of it. */
+    var warm = C.warm;
+    var sunI = (0.55 + C.light * 1.05) * (1 - C.flood * 0.45);
+    gl.uniform3f(prg.u.uSunCol,
+                 sunI * (1 + (warm - 0.5) * 0.34),
+                 sunI * (1 + (warm - 0.5) * 0.06),
+                 sunI * (1 - (warm - 0.5) * 0.40));
+
+    /* Ambient scale. A floodlit ground has very little skylight, so the probe
+       is dialled back and the rigs take over. */
+    gl.uniform1f(prg.u.uAmb, 0.42 + C.light * 0.62);
+
     gl.uniform4f(prg.u.uCond, C.light, C.warm, C.flood, C.haze);
     gl.uniform1f(prg.u.uWet, C.wet);
     gl.uniform4f(prg.u.uViewport, vpx(), vpy(), VP.w * dpr(), VP.h * dpr());
     if (prg.u.uVP) gl.uniformMatrix4fv(prg.u.uVP, false, mVP);
+
+    /* Shadow map, for any program that samples it. This is centralised because
+       an unbound shadow sampler does NOT raise an error — it reads zero, which
+       shadowAt() reads as "fully shadowed", so the surface silently renders
+       black. Adding shadowAt() to the ball and the goal frame is exactly the
+       kind of change that would otherwise look like a lighting bug. */
+    /* The stand's occluding silhouette, derived from the bowl rather than dialled
+       in: the roof's inner lip sits roofBack metres back from the perimeter,
+       at the roof's own height. Passing the lip's own half-extents (not the
+       perimeter's) is what makes the band land in the right place -- the lip
+       overhangs, so its shadow reaches further onto the pitch than a wall at
+       the perimeter would. */
+    var roofBack = BOWL.rows * BOWL.run - BOWL.roofOver;
+    gl.uniform4f(prg.u.uStand,
+                 BOWL.hx + roofBack, BOWL.hy + roofBack,
+                 BOWL.base + BOWL.rows * BOWL.rise + BOWL.roofLift,
+                 1.0);
+
+    if (prg.u.uShadow) {
+      gl.uniformMatrix4fv(prg.u.uLightVP, false, mLightVP);
+      gl.uniform1f(prg.u.uShadowTexel, 1 / SHADOW.size);
+      GLX.bindTex(0, SHADOW.tex);
+      gl.uniform1i(prg.u.uShadow, 0);
+    }
   }
 
-  function dpr() { return Math.min(window.devicePixelRatio || 1, 2.5); }
+  /* Read, never compute: RES.ratio() is a cached getter and the number is
+     fixed for the frame. Deriving it here independently is how the GL
+     viewport and the 2D overlay end up at different scales. */
+  function dpr() {
+    return (typeof RES !== "undefined") ? RES.ratio()
+                                        : Math.min(window.devicePixelRatio || 1, 2.5);
+  }
   function vpx() { return Math.round(VP.x * dpr()); }
   function vpy() { return Math.round(H - (VP.y + VP.h) * dpr()); }
 
@@ -1927,7 +2366,7 @@ var GLR = (function () {
        already grade for the condition, so anything more than a nudge here
        double-applies it — the same mistake as double-tonemapping, just
        quieter. */
-    var expo = 0.98 + C.light * 0.06;
+    var expo = 0.94 + C.light * 0.06;
 
     /* colour temperature: warm pulls red, cool pulls blue */
     var w = (C.warm - 0.5);
@@ -1969,10 +2408,21 @@ var GLR = (function () {
       focus: [focusDist, dof],
       bloom: bloom, knee: knee,
       exposure: expo, tint: tint,
-      /* a touch more saturation and contrast under lights, where the scene is
-         naturally flatter — kept small enough to stay a nudge */
-      sat: 1.0 + (1 - C.light) * 0.06,
-      contrast: 1.0 + C.flood * 0.035,
+      /* THE CURVE.
+
+         These were 1.00 and 1.00 in daylight, which is to say the frame got no
+         shaping at all: no contrast, no saturation, straight out of the
+         shoulder. Measured on an afternoon frame, that produced turf at 157,
+         white shorts at 245 and a kit red whose saturation had fallen from 0.62
+         at source to 0.50 on screen -- a bright, pastel, low-contrast picture,
+         and the specific look that separates a phone game from a broadcast.
+
+         An ambient probe that reaches everywhere is what causes it: every
+         surface gets lifted toward the sky colour, so shadows are never dark and
+         nothing is ever fully saturated. That is correct lighting and the wrong
+         picture, and the place to fix it is the curve, not the light. */
+      sat: 1.07 + (1 - C.light) * 0.10,
+      contrast: 1.12 + C.flood * 0.03,
       vig: [0.20 + (1 - C.light) * 0.14, 0.34],
       grain: 0.010 + (1 - C.light) * 0.010,
       mblur: mblur,
@@ -2019,7 +2469,26 @@ var GLR = (function () {
 
   /* A unit tapered cylinder: axis along Y from -1 to +1, radius 1 in X and Z.
      The taper is applied in the vertex shader from aTap so one mesh serves a
-     thigh, a sleeve and a neck. */
+     thigh, a sleeve and a neck.
+
+     WINDING MATTERS HERE, and it silently did not for a long time. Culling is
+     BACK/CCW globally, and this mesh originally wound every triangle the other
+     way: the outer wall was the back face and got culled, so what actually
+     rasterised was the INSIDE of the far wall. The silhouette of a cylinder is
+     identical either way, so the shape looked perfectly correct — but every
+     shaded pixel carried an outward normal belonging to the far side, pointing
+     AWAY from the camera.
+
+     Under the old hand-tuned shader that was invisible: it wrapped its diffuse
+     and added a flat 0.34 ambient, so a back-facing normal just read as
+     slightly flat. Under a real BRDF it is fatal. dot(N,V) came out negative
+     across the whole limb, clamped to 1e-4, which drove Schlick's Fresnel to
+     0.9995 -- so kd = 1-F went to ~0, the diffuse term vanished entirely, and
+     each limb rendered from ambient specular alone at RGB(5,5,5). Measured
+     before this fix: torso ambient 5/255, joint-cap spheres 184/255, from the
+     same fragment shader with byte-identical uniforms.
+
+     Verify with a normal-visualisation pass, not by eye. */
   function unitCyl(sides) {
     var pos = [], nrm = [], idx = [], i;
     for (i = 0; i < sides; i++) {
@@ -2031,7 +2500,7 @@ var GLR = (function () {
     for (i = 0; i < sides; i++) {
       var a0 = i * 2, a1 = a0 + 1;
       var b0 = ((i + 1) % sides) * 2, b1 = b0 + 1;
-      idx.push(a0, b0, a1, a1, b0, b1);
+      idx.push(a0, a1, b0, a1, b1, b0);
     }
     /* caps, so a limb end seen head-on is not a hole */
     var base = pos.length / 3;
@@ -2039,8 +2508,8 @@ var GLR = (function () {
     pos.push(0,  1, 0); nrm.push(0,  1, 0);
     for (i = 0; i < sides; i++) {
       var c0 = i * 2, c1 = ((i + 1) % sides) * 2;
-      idx.push(base, c1, c0);
-      idx.push(base + 1, c0 + 1, c1 + 1);
+      idx.push(base, c0, c1);
+      idx.push(base + 1, c1 + 1, c0 + 1);
     }
     return { pos: new Float32Array(pos), nrm: new Float32Array(nrm),
              idx: new Uint16Array(idx) };
@@ -2113,9 +2582,22 @@ var GLR = (function () {
 
   var _c = [0, 0, 0];
 
-  /* A bone: from `f` to `t` metres down the joint's own -U axis, half-width hw
+  /* A bone: from f to t metres down the joint's own -U axis, half-width hw
      across R and hd across F, tapering from ta to tb. */
-  function limbIns(j, hw, hd, f, t, ta, tb, colour) {
+  /* ROUGHNESS PER MATERIAL. Packed into the instance colour's alpha, so a
+     shirt, a boot and a shin all reach the same BRDF with the right surface
+     instead of one shared exponent. */
+  var ROUGH = {
+    kit:   0.74,   // knitted polyester: matte, slight sheen
+    skin:  0.52,
+    sock:  0.80,
+    boot:  0.22,   // modern boots are near-patent
+    sole:  0.46,
+    short: 0.70,
+    glove: 0.62
+  };
+
+  function limbIns(j, hw, hd, f, t, ta, tb, colour, rough) {
     if (pl_n >= PL_MAX) return;
     var o = pl_n * 4;
     var halfL = (t - f) * 0.5, mid = (t + f) * 0.5;
@@ -2127,19 +2609,21 @@ var GLR = (function () {
     pl_m2[o]   = j.F.x * hd; pl_m2[o+1] = j.F.y * hd; pl_m2[o+2] = j.F.z * hd;
     pl_m2[o+3] = j.o.z - j.U.z * mid;
     GLX.col3(colour, _c);
-    pl_col[o] = _c[0]; pl_col[o+1] = _c[1]; pl_col[o+2] = _c[2]; pl_col[o+3] = 1;
+    pl_col[o] = _c[0]; pl_col[o+1] = _c[1]; pl_col[o+2] = _c[2];
+    pl_col[o+3] = rough == null ? ROUGH.kit : rough;
     /* taper runs along +Y in object space, which is -U in the world, so the
        ends swap: tb belongs at y=-1 */
     pl_tap[o] = tb; pl_tap[o+1] = ta; pl_tap[o+2] = 0; pl_tap[o+3] = 0;
     pl_n++;
   }
 
-  function sphereIns(p, r, colour) {
+  function sphereIns(p, r, colour, rough) {
     if (ps_n >= PS_MAX) return;
     var o = ps_n * 4;
     ps_m0[o] = p.x; ps_m0[o+1] = p.y; ps_m0[o+2] = p.z; ps_m0[o+3] = r;
     GLX.col3(colour, _c);
-    ps_col[o] = _c[0]; ps_col[o+1] = _c[1]; ps_col[o+2] = _c[2]; ps_col[o+3] = 1;
+    ps_col[o] = _c[0]; ps_col[o+1] = _c[1]; ps_col[o+2] = _c[2];
+    ps_col[o+3] = rough == null ? ROUGH.skin : rough;
     ps_n++;
   }
 
@@ -2211,40 +2695,50 @@ var GLR = (function () {
     /* legs */
     [["hipL", "knL", "anL"], ["hipR", "knR", "anR"]].forEach(function (t) {
       var hip = J[t[0]], kn = J[t[1]], an2 = J[t[2]];
-      limbIns(hip, 0.091, 0.095, 0.16, LTH, 0.94, 0.78, skin);
-      limbIns(kn, 0.074, 0.078, 0.0, SHN * 0.30, 1.0, 0.96, skin);
-      limbIns(kn, 0.078, 0.082, SHN * 0.26, SHN * 0.88, 0.98, 0.88, sock);
+      limbIns(hip, 0.091, 0.095, 0.16, LTH, 0.94, 0.78, skin, ROUGH.skin);
+      limbIns(kn, 0.074, 0.078, 0.0, SHN * 0.30, 1.0, 0.96, skin, ROUGH.skin);
+      limbIns(kn, 0.078, 0.082, SHN * 0.26, SHN * 0.88, 0.98, 0.88, sock, ROUGH.sock);
       /* boot: a short box on the foot joint, projecting along its own F */
       var bo = { o: { x: an2.o.x + an2.F.x * 0.05,
                       y: an2.o.y + an2.F.y * 0.05,
                       z: an2.o.z + an2.F.z * 0.05 },
                  R: an2.R, F: an2.F, U: an2.U };
-      limbIns(bo, 0.072, 0.126, -0.05, 0.02, 0.86, 1.0, COL.boot);
-      limbIns(bo, 0.074, 0.128, -0.028, -0.008, 0.84, 0.96, "#e8eef4");
-      sphereIns(kn.o, 0.075, skin);
-      sphereIns(hip.o, 0.092, alt);
+      limbIns(bo, 0.072, 0.126, -0.05, 0.02, 0.86, 1.0, COL.boot, ROUGH.boot);
+      limbIns(bo, 0.074, 0.128, -0.028, -0.008, 0.84, 0.96, "#e8eef4", ROUGH.sole);
+      sphereIns(kn.o, 0.075, skin, ROUGH.skin);
+      sphereIns(hip.o, 0.092, alt, ROUGH.short);
     });
 
-    /* shorts and torso */
+    /* SHORTS.
+
+       Was 0.345 m long with the taper widening downward -- 1.02 at the waist to
+       1.13 at the hem. A 35 cm garment that gets wider as it descends is a
+       skirt, and that is exactly what it read as: the hem reached mid-thigh, the
+       legs never separated, and the figure lost its silhouette at the one place
+       a footballer's proportions are most recognisable.
+
+       Now 0.275 m and tapering IN toward the hem, so the thigh clears the fabric
+       and the two legs read as two legs. */
     limbIns({ o: J.pelvis.o, R: J.pelvis.R, F: J.pelvis.F, U: J.pelvis.U },
-            0.178, 0.128, -0.17, 0.175, 1.13, 1.02,
-            p.team === "us" ? "#e4eaf0" : alt);
-    limbIns(J.spine, 0.166 * ID.broad, 0.108, -TOR, 0.05, 1.40 * ID.broad, 0.96, kit);
-    limbIns(J.spine, 0.166 * ID.broad, 0.108, -TOR, -(TOR - 0.010), 1.35, 1.335, alt);
+            0.170, 0.125, -0.17, 0.105, 0.98, 1.06,
+            p.team === "us" ? "#e4eaf0" : alt, ROUGH.short);
+    limbIns(J.spine, 0.166 * ID.broad, 0.108, -TOR, 0.05, 1.40 * ID.broad, 0.96, kit, ROUGH.kit);
+    limbIns(J.spine, 0.166 * ID.broad, 0.108, -TOR, -(TOR - 0.010), 1.35, 1.335, alt, ROUGH.kit);
 
     /* arms */
     [["shL", "elL", "haL"], ["shR", "elR", "haR"]].forEach(function (t) {
       var sh = J[t[0]], el = J[t[1]], ha = J[t[2]];
-      limbIns(el, 0.053, 0.056, -UA * 0.16, FA2, 1.02, 0.86, skin);
-      limbIns(sh, 0.066 * ID.broad, 0.069, 0.0, UA * 0.86, 1.06, 0.92, sleeve);
-      limbIns(sh, 0.064, 0.067, UA * 0.80, UA * 0.90, 0.94, 0.90, alt);
-      sphereIns(el.o, 0.055, skin);
-      sphereIns(sh.o, 0.062, sleeve);
-      sphereIns(ha.o, 0.057, p.role === "gk" ? "#f2f4f7" : skin);
+      limbIns(el, 0.053, 0.056, -UA * 0.16, FA2, 1.02, 0.86, skin, ROUGH.skin);
+      limbIns(sh, 0.066 * ID.broad, 0.069, 0.0, UA * 0.86, 1.06, 0.92, sleeve, ROUGH.kit);
+      limbIns(sh, 0.064, 0.067, UA * 0.80, UA * 0.90, 0.94, 0.90, alt, ROUGH.kit);
+      sphereIns(el.o, 0.055, skin, ROUGH.skin);
+      sphereIns(sh.o, 0.062, sleeve, ROUGH.kit);
+      sphereIns(ha.o, 0.057, p.role === "gk" ? "#f2f4f7" : skin,
+                p.role === "gk" ? ROUGH.glove : ROUGH.skin);
     });
 
     /* neck and head */
-    limbIns(J.neck, 0.068, 0.066, -(boneLen("head") + 0.01), 0.06, 0.86, 1.05, skin);
+    limbIns(J.neck, 0.068, 0.066, -(boneLen("head") + 0.01), 0.06, 0.86, 1.05, skin, ROUGH.skin);
     var hd = J.head;
     var hc = { x: hd.o.x + hd.U.x * 0.068,
                y: hd.o.y + hd.U.y * 0.068,
@@ -2320,6 +2814,9 @@ var GLR = (function () {
      process is the only honest way to do it. */
   function useCanvas(yes) {
     usingGL = !yes;
+    /* the 2D renderer is fill-bound on the CPU: a 4K budget there is a
+       slideshow, so hand it back the one it was written for */
+    if (typeof RES !== "undefined") RES.target(yes ? RES.T2K : RES.T4K);
     for (var i = 0; i < TAKEN.length; i++) {
       var k = TAKEN[i];
       if (!ORIG[k]) continue;
@@ -2342,11 +2839,15 @@ var GLR = (function () {
       initCanvas();
       live = boot();
       if (!live) {
-        /* Persist the opt-out rather than editing the URL. GL is the default
-           now, so stripping a query parameter would just re-enable it on the
-           next load and loop. */
-        console.warn("[gl] boot failed — reverting to the canvas renderer");
-        try { localStorage.setItem("goalio_gl", "0"); } catch (e) {}
+        /* Fall back for THIS SESSION only — do not persist the opt-out.
+
+           Persisting it was a real bug: a single transient failure (a shader
+           typo during development, a context lost because too many tabs were
+           open) wrote goalio_gl="0" and disabled the renderer permanently, so
+           fixing the actual fault changed nothing and the game silently stayed
+           on canvas. If the device genuinely cannot run this, boot fails again
+           next load and falls back again — same outcome, no dead end. */
+        console.warn("[gl] boot failed — canvas renderer for this session");
         useCanvas(true);
       }
     };

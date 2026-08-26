@@ -915,6 +915,9 @@ function frame(ts) {
   if (!lastT) lastT = ts;
   var dt = Math.min(0.05, (ts - lastT) / 1000);
   lastT = ts;
+  /* before checkResize: the adaptive pass can move the pixel ratio, and
+     checkResize is what notices and resizes the canvases to match */
+  if (typeof RES !== "undefined") RES.tick(ts, screenState === "play" && !!world);
   checkResize();
 
   if (hintTimer > 0) {

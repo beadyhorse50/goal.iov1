@@ -14,13 +14,23 @@
 
 var SHOT = (function () {
 
-  /* the page sized its canvas before the pane had a size — do it again now */
-  function fit(w, h) {
+  /* the page sized its canvas before the pane had a size — do it again now.
+
+     `r` pins the pixel ratio, and leaving it off actively UNPINS — fit() sets
+     the whole policy, it does not inherit one. That matters: without it a
+     capture at r:2.5 silently leaves the next unpinned capture at 2.5 too, and
+     an A/B of two resolutions comes back as two identical images.
+
+     Unpinned, RES picks the 4K budget: on a 390x844 frame that is ratio 4 and
+     a 1560x3376 capture, right for judging the real picture and heavy for a
+     POST. Pass r:2.5 to reproduce a capture made before the budget existed. */
+  function fit(w, h, r) {
     if (w) {
       /* resize() reads window.innerWidth; override for a deterministic frame */
       Object.defineProperty(window, "innerWidth", { value: w, configurable: true });
       Object.defineProperty(window, "innerHeight", { value: h, configurable: true });
     }
+    if (typeof RES !== "undefined") RES.pin(r === undefined ? null : r);
     resize();
     return { w: cvs.width, h: cvs.height, vp: { w: VP.w, h: VP.h, x: VP.x, y: VP.y } };
   }
@@ -81,7 +91,7 @@ var SHOT = (function () {
     /* one frame: set up the level, optionally strike, run t seconds, capture */
     grab: function (name, o) {
       o = o || {};
-      fit(o.w || 390, o.h || 844);
+      fit(o.w || 390, o.h || 844, o.dpr);
       if (o.screen === "menu") { showMenu(); return post(name, "menu"); }
       startLevel(o.level || 0);
       /* one render so the camera settles on its target before anything moves */
@@ -95,7 +105,7 @@ var SHOT = (function () {
     /* a burst of frames across a single flight — the whole goal moment */
     seq: function (base, o) {
       o = o || {};
-      fit(o.w || 390, o.h || 844);
+      fit(o.w || 390, o.h || 844, o.dpr);
       startLevel(o.level || 0);
       cameraFollow(world, 0, true);
       renderWorld(world, null, 0);

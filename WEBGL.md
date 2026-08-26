@@ -35,10 +35,59 @@ js/post.gl.js     the post chain: bright pass, bloom, DoF, motion blur,
 js/render.gl.js   the renderer: sky, turf, bowl, crowd, goal, ball, trail,
                   PLAYERS, and the grade that drives the post chain
 js/shotgl.js      capture harness — NOT loaded by index.html
+js/res.js         the pixel budget: how big every buffer in here gets
 ```
 
 `index.html` gains two `<script>` tags, `sw.js` gains the two files in
 `ASSETS` and a `VERSION` bump. Nothing else in the project was edited.
+
+## 1a. Resolution — `js/res.js`
+
+`RES.ratio()` is the only thing in the project allowed to decide how many
+device pixels a CSS pixel becomes. The GL canvas, the 2D overlay, the post
+targets and the shadow map all derive from it, and anything that computes its
+own `devicePixelRatio` is a bug waiting to happen — the old code had the same
+`min(devicePixelRatio, 2.5)` expression in three places and they agreed only by
+coincidence.
+
+The rule is a **pixel budget, not a multiplier**: render as many pixels as fit
+in a 4K frame (3840x2160), whatever shape the window is.
+
+```
+window 1920x1080 css ->  ratio 2.00  ->  3840 x 2160   8.3 MP   (literally 4K)
+window 1280x800  css ->  ratio 2.85  ->  3643 x 2277   8.3 MP
+phone  390x844   css ->  ratio 4.00  ->  1560 x 3376   5.3 MP   (ratio-capped)
+```
+
+The ratio is capped at 4x. On a phone-shaped window the budget wants ~5x, and
+past 4x you are rendering detail no panel can show on the hardware least able
+to afford it.
+
+Three things follow from this that are easy to get wrong:
+
+- **The ratio moves at runtime.** `RES.tick()` measures frame pacing and drops
+  the ratio to the one the measurement says will fit, then lets it back up. So
+  `checkResize()` in `render.js` treats a changed ratio as a resize, and
+  `dpr()` in here *reads* `RES.ratio()` and never recomputes it. A ratio that
+  changed halfway through a frame puts the GL viewport and the 2D overlay at
+  different scales, and that reads as a broken camera, not a resolution bug.
+- **The canvas fallback gets a smaller budget.** `useCanvas()` swaps the target
+  between `RES.T4K` and `RES.T2K`. The 2D renderer is CPU fill-bound; 4K there
+  is a slideshow.
+- **The driver's `MAX_TEXTURE_SIZE` is a real constraint now,** not a
+  formality. A 4K portrait buffer is 3840 on its long edge and plenty of mobile
+  GPUs stop at 4096. Exceeding it does not throw — the target comes back
+  incomplete, `GPOST.resize()` returns false and the whole post chain silently
+  drops out. `RES.limit()` is set from the context at boot and clamps for it.
+
+Overrides for testing: `?res=4k` (budget, no adaptation), `?res=native`,
+`?res=off` (the old 2.5 cap), `?res=2.75` (fixed). In the capture harness,
+`SHOT.fit(w, h, r)` pins the ratio — and leaving `r` off *unpins*, so an A/B of
+two resolutions does not silently come back as two identical images.
+
+Cost on this desktop, 390x844 play area, median of 30 renders across four
+interleaved passes: **2.06 MP ~5.3-6.1 ms, 5.27 MP ~12.2-14.4 ms.** Roughly
+double, which is why the adaptive pass exists rather than being optional.
 
 ## 2. How it attaches, and why that way
 
@@ -242,6 +291,11 @@ the measurement corrected it.
   and comparing them against every colour in the shader, after two confident
   theories (fog, a dead shader branch) were both wrong. `quad()` now documents
   its winding.
+- **A backtick inside a GLSL comment ends the shader's template literal.** The
+  shader sources are template literals, so ``/* `rough` is perceptual */`` in a
+  comment closes the string mid-file and the whole of `render.gl.js` fails to
+  parse. The symptom is not a shader error — it is `GLR is not defined` and the
+  game quietly playing on the canvas renderer.
 - **Advertising board text renders mirrored** unless U is negated. The
   perimeter path runs counter-clockwise, so increasing U is left-to-right for a
   camera *outside* the bowl — which is no camera this game has.

@@ -232,13 +232,21 @@ var GPOST = (function () {
     vec3 bl = texture(uBloomA, vUv).rgb * 0.62 + texture(uBloomB, vUv).rgb * 0.38;
     col += bl * uBloom;
 
-    /* ---- exposure, shoulder, grade --------------------------------- */
+    /* ---- exposure, contrast, shoulder, grade ------------------------ */
     col *= uExposure;
-    col = shoulder(col);
     col *= uTint;
 
-    /* contrast about mid grey, then saturation */
+    /* CONTRAST BEFORE THE SHOULDER, not after.
+
+       It used to run after, which undoes the shoulder's whole job: the roll-off
+       lands a highlight at 0.90, contrast about mid grey pushes it back to 0.95
+       or past 1.0, and the frame clips again at exactly the values that were
+       just rescued. Ordered this way the contrast is free to push highlights
+       over 1.0 because the shoulder is downstream to catch them, which is what
+       lets the curve be strong enough to see. */
     col = (col - 0.5) * uContrast + 0.5;
+    col = shoulder(col);
+
     float lum = dot(col, vec3(0.2126, 0.7152, 0.0722));
     col = mix(vec3(lum), col, uSat);
 

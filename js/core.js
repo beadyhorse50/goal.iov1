@@ -97,18 +97,48 @@ var SEASONS = [
      sky      zenith / mid / horizon colours
 
    Weather is presentation only. It never touches the ball. */
+/* WHERE THE SUN IS, per condition.
+
+   `sunEl` is elevation in degrees above the horizon, `sunAz` the compass
+   bearing measured from +X toward +Y. Until now there was one hard-coded light
+   vector for every match in the game, which meant a golden-hour kick-off and a
+   midweek afternoon threw identical shadows in identical directions -- the
+   single biggest reason the conditions felt like colour filters rather than
+   like different times of day.
+
+   Elevation is the interesting number. It sets shadow length, it sets how much
+   direct light a standing figure catches, and below about 25 degrees the roof
+   of the west stand starts throwing a band across the grass, which is the most
+   recognisable lighting event in televised football. Golden hour is set low
+   enough to get that band; the afternoon is not. */
 var CONDITIONS = {
   afternoon: { light: 1.00, warm: 0.55, flood: 0.10, wet: 0.00, rain: 0, haze: 1.00,
+               sunEl: 40, sunAz: 128,
                sky: ["#1f4f78", "#77b1cf", "#e2edee"] },
   goldenHour:{ light: 0.96, warm: 1.00, flood: 0.25, wet: 0.00, rain: 0, haze: 1.25,
+               /* Chosen from the geometry, not by eye. The shooting camera sees
+                  only about +/-7 m of pitch width, so a shadow band along a
+                  touchline can never enter the frame -- the edge has to run
+                  ACROSS the pitch, which means the sun has to sit behind the
+                  camera and low. At 9 degrees the stand's roof lip throws its
+                  edge to about y = -35: the foreground turf falls into shade,
+                  the goalmouth stays in the last of the light, and the striker
+                  is standing on the line between them. Anything above about 11
+                  degrees puts that edge behind the camera and the whole effect
+                  is invisible. */
+               sunEl: 9, sunAz: 105,
                sky: ["#243f6b", "#b3763f", "#f5cf9a"] },
   overcast:  { light: 0.88, warm: 0.18, flood: 0.30, wet: 0.18, rain: 0, haze: 1.45,
+               sunEl: 34, sunAz: 142,
                sky: ["#43505c", "#7c8a94", "#c3ccd1"] },
   rain:      { light: 0.80, warm: 0.10, flood: 0.55, wet: 0.72, rain: 1, haze: 1.75,
+               sunEl: 27, sunAz: 155,
                sky: ["#2e3944", "#5b6874", "#98a4ad"] },
   night:     { light: 0.66, warm: 0.30, flood: 1.00, wet: 0.10, rain: 0, haze: 0.85,
+               sunEl: 33, sunAz: 205,
                sky: ["#070b14", "#0e1626", "#1d2a3c"] },
   nightRain: { light: 0.62, warm: 0.20, flood: 1.00, wet: 0.78, rain: 1, haze: 1.30,
+               sunEl: 31, sunAz: 212,
                sky: ["#060910", "#101a28", "#1f2c3a"] }
 };
 

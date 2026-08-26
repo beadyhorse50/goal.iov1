@@ -85,6 +85,30 @@ var M4 = {
   },
 
   /* Rotation about z in clip space, used for camera-shake roll. */
+  /* Full 4x4 inverse. Needed by the post chain: reconstructing a pixel's world
+     position from its depth requires clip -> world, and a view-projection is
+     not orthonormal so the cheap transpose trick does not apply. */
+  invert: function (out, m) {
+    var a00=m[0],a01=m[1],a02=m[2],a03=m[3], a10=m[4],a11=m[5],a12=m[6],a13=m[7],
+        a20=m[8],a21=m[9],a22=m[10],a23=m[11], a30=m[12],a31=m[13],a32=m[14],a33=m[15];
+    var b00=a00*a11-a01*a10, b01=a00*a12-a02*a10, b02=a00*a13-a03*a10,
+        b03=a01*a12-a02*a11, b04=a01*a13-a03*a11, b05=a02*a13-a03*a12,
+        b06=a20*a31-a21*a30, b07=a20*a32-a22*a30, b08=a20*a33-a23*a30,
+        b09=a21*a32-a22*a31, b10=a21*a33-a23*a31, b11=a22*a33-a23*a32;
+    var det = b00*b11 - b01*b10 + b02*b09 + b03*b08 - b04*b07 + b05*b06;
+    if (!det) { return M4.ident(); }
+    det = 1 / det;
+    out[0]=(a11*b11-a12*b10+a13*b09)*det;  out[1]=(a02*b10-a01*b11-a03*b09)*det;
+    out[2]=(a31*b05-a32*b04+a33*b03)*det;  out[3]=(a22*b04-a21*b05-a23*b03)*det;
+    out[4]=(a12*b08-a10*b11-a13*b07)*det;  out[5]=(a00*b11-a02*b08+a03*b07)*det;
+    out[6]=(a32*b02-a30*b05-a33*b01)*det;  out[7]=(a20*b05-a22*b02+a23*b01)*det;
+    out[8]=(a10*b10-a11*b08+a13*b06)*det;  out[9]=(a01*b08-a00*b10-a03*b06)*det;
+    out[10]=(a30*b04-a31*b02+a33*b00)*det; out[11]=(a21*b02-a20*b04-a23*b00)*det;
+    out[12]=(a11*b07-a10*b09-a12*b06)*det; out[13]=(a00*b09-a01*b07+a02*b06)*det;
+    out[14]=(a31*b01-a30*b03-a32*b00)*det; out[15]=(a20*b03-a21*b01+a22*b00)*det;
+    return out;
+  },
+
   rotZ: function (out, a) {
     var c = Math.cos(a), s = Math.sin(a);
     out[0]=c; out[1]=s; out[2]=0; out[3]=0;
@@ -99,6 +123,7 @@ var GLX = (function () {
   var gl = null;
   var progs = {};
   var lastProg = null;
+  var HDR_OK = false;              // EXT_color_buffer_float present
 
   /* ---------------------------------------------------------------- init */
   function init(el) {
@@ -113,6 +138,20 @@ var GLX = (function () {
       powerPreference: "high-performance"
     });
     if (!gl) return null;
+
+    /* RGBA16F is NOT colour-renderable in plain WebGL2 — the format exists and
+       texImage2D accepts it, but attaching it to a framebuffer gives an
+       incomplete FBO until this extension is enabled. It fails silently: no GL
+       error, just a framebuffer that never completes, so the post chain
+       disables itself and the picture looks merely un-graded. Enable it before
+       anything creates a target. */
+    HDR_OK = !!gl.getExtension("EXT_color_buffer_float");
+    if (!HDR_OK) {
+      /* half-float only is enough for bloom; fall back rather than give up */
+      HDR_OK = !!gl.getExtension("EXT_color_buffer_half_float");
+    }
+    gl.getExtension("OES_texture_float_linear");   // linear filtering on float
+
     gl.enable(gl.DEPTH_TEST);
     gl.depthFunc(gl.LEQUAL);
     gl.enable(gl.CULL_FACE);
@@ -153,7 +192,13 @@ var GLX = (function () {
      in both — and the linker is free to number them differently otherwise.
      One table here is the difference between sharing meshes and duplicating
      every one of them per program. */
-  var ATTR = { aPos: 0, aNrm: 1, aUv: 2, aIns: 3, aIns2: 4, aCol: 5, aSeed: 6 };
+  /* Attribute locations are bound EXPLICITLY so one VAO can be drawn by both the
+   shading pass and the depth-only shadow pass. Without that the linker is free
+   to number them differently per program and the shadow pass silently reads
+   the wrong buffer. Slots 7-9 are the extra per-instance columns the player
+   pass needs (a 3x4 matrix plus a taper pair). */
+  var ATTR = { aPos: 0, aNrm: 1, aUv: 2, aIns: 3, aIns2: 4, aCol: 5, aSeed: 6,
+               aIns3: 7, aTap: 8 };
 
   /* Compile, link, then introspect every active uniform and attribute so the
      renderer can write P.u.mvp instead of carrying location handles around. */
@@ -298,6 +343,75 @@ var GLX = (function () {
     return { fb: fb, tex: tex, size: size };
   }
 
+  /* --------------------------------------------------- colour render target
+     A colour+depth FBO the scene renders into so a post chain can read it.
+
+     Two things matter here. The colour attachment is RGBA16F, not RGBA8: bloom
+     needs to know which pixels are genuinely brighter than white, and an 8-bit
+     target clamps everything to 1.0 and throws that information away — you get
+     a blurred copy of the image instead of a bloom. Floodlights are the whole
+     point, so the buffer has to hold values above 1.
+
+     And the depth attachment is a TEXTURE rather than a renderbuffer, because
+     depth of field needs to sample scene depth per pixel. */
+  function colorTarget(w, h, opts) {
+    opts = opts || {};
+    var hdr = (opts.hdr !== false) && HDR_OK;
+    var wantDepth = opts.depth !== false;
+
+    var tex = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0,
+                  hdr ? gl.RGBA16F : gl.RGBA8, w, h, 0,
+                  gl.RGBA, hdr ? gl.HALF_FLOAT : gl.UNSIGNED_BYTE, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+    var dep = null;
+    if (wantDepth) {
+      dep = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, dep);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24, w, h, 0,
+                    gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, null);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    }
+
+    var fb = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fb);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
+    if (dep) {
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, dep, 0);
+    }
+    var st = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    if (st !== gl.FRAMEBUFFER_COMPLETE) {
+      console.warn("[gl] colour target incomplete " + w + "x" + h +
+                   " status 0x" + st.toString(16) + " hdr=" + hdr);
+      return null;
+    }
+    return { fb: fb, tex: tex, depth: dep, w: w, h: h, hdr: hdr };
+  }
+
+  function freeTarget(t) {
+    if (!t) return;
+    if (t.fb) gl.deleteFramebuffer(t.fb);
+    if (t.tex) gl.deleteTexture(t.tex);
+    if (t.depth) gl.deleteTexture(t.depth);
+  }
+
+  /* A screen-filling triangle pair with no attributes — the post chain draws
+     this for every pass. Positions come from gl_VertexID in the shader, so
+     there is no buffer to bind and no VAO to switch. */
+  function fullscreen() {
+    var vao = gl.createVertexArray();
+    return { vao: vao, count: 3, ib: null, type: 0, bufs: {} };
+  }
+
   /* ----------------------------------------------------------------- misc */
   /* "#rrggbb" or "rgb(r,g,b)" -> [r,g,b] in 0..1. render.js learned this the
      hard way (its colour helpers return rgb() and used to accept only hex), so
@@ -328,6 +442,8 @@ var GLX = (function () {
   return {
     init: init, ctx: ctx, prog: prog, use: use, mesh: mesh, update: update,
     draw: draw, texFromCanvas: texFromCanvas, bindTex: bindTex,
-    depthTarget: depthTarget, col3: col3, err: err
+    depthTarget: depthTarget, colorTarget: colorTarget, freeTarget: freeTarget,
+    fullscreen: fullscreen, col3: col3, err: err,
+    hdr: function () { return HDR_OK; }
   };
 })();

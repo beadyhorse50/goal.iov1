@@ -110,6 +110,19 @@ var GSHOT = (function () {
       return out;
     },
 
+    /* Capture whatever is on screen RIGHT NOW, without touching the world.
+
+       grab() and seq() both call startLevel() first, which is what you want
+       when you are describing a shot declaratively — and exactly what you do
+       not want when you have driven the sim to an interesting moment by hand.
+       Using grab() to photograph a celebration silently restarts the level and
+       hands back the aim frame, which looks like the renderer failing rather
+       than the harness resetting. */
+    snap: function (name) {
+      renderWorld(world, null, 0);
+      return post(comp(), name, note());
+    },
+
     grab: function (name, o) {
       o = o || {};
       SHOT.fit(o.w || 390, o.h || 844);

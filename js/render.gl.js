@@ -48,6 +48,10 @@ var GLR = (function () {
   /* scratch matrices — allocated once, a renderer that allocates per frame
      hands the GC a sawtooth and the sawtooth is judder */
   var mView = M4.ident(), mProj = M4.ident(), mVP = M4.ident();
+  var mInvVP = M4.ident();          // clip -> world, for the post chain
+  var prevEye = [0, 0, 0], prevFwd = [0, -1, 0];   // for cut detection
+  var POSTING = false;              // did this frame render into the HDR target
+  var usePost = true;               // GLR.dbg.post toggles it
   var mTmp = M4.ident(), mTmp2 = M4.ident(), mModel = M4.ident();
   var mLightVP = M4.ident(), mLightV = M4.ident(), mLightP = M4.ident();
 
@@ -60,16 +64,42 @@ var GLR = (function () {
   /* Per-pass switches. The canvas renderer found its black pitch by disabling
      passes one at a time and reading pixels back, after two confident theories
      about the cause were both wrong. Same trick, made permanent. */
-  var DBG = { sky: 1, stand: 1, roof: 1, crowd: 1, ground: 1, posts: 1, ball: 1, net: 1 };
+  var DBG = { sky: 1, stand: 1, roof: 1, crowd: 1, ground: 1, posts: 1, ball: 1, net: 1,
+              /* post: 0 renders straight to the back buffer, which is how you
+                 tell a grading problem from a geometry problem */
+              post: 1,
+              /* players: 0 hands the actors back to the canvas layer, which is
+                 how the hybrid ran before the GL player pass existed */
+              players: 1 };
   var SHADOW_SIZE = 1024;
   var SHADOW_HALF = 22;       // metres either side of the shadow camera centre
 
+  /* DEFAULT ON.
+
+     This was opt-in while the renderer was partial. It is the default now
+     because it finally wins on both axes at once, measured interleaved in a
+     single page load with a readPixels per frame to force GPU completion:
+
+       level 1   GL 7.18 ms   canvas 8.21 ms
+       level 5   GL 6.01 ms   canvas 11.06 ms
+       level 10  GL 6.20 ms   canvas 10.24 ms
+
+     and the GL frame is doing considerably more work while being cheaper — the
+     players, 18,000 individually simulated spectators, a real shadow map, and
+     the whole post chain, against a canvas frame with a stride-thinned crowd
+     and no post-processing at all.
+
+     `?gl=0` still forces the canvas renderer, and boot() falls back to it
+     automatically if WebGL2 or any program fails, so a device that cannot run
+     this still gets a working game rather than a black screen. */
   function flagged() {
     try {
-      if (/[?&]gl=1/.test(location.search)) return true;
       if (/[?&]gl=0/.test(location.search)) return false;
-      return localStorage.getItem("goalio_gl") === "1";
-    } catch (e) { return false; }
+      if (/[?&]gl=1/.test(location.search)) return true;
+      var pref = localStorage.getItem("goalio_gl");
+      if (pref === "0") return false;
+      return true;
+    } catch (e) { return true; }
   }
 
   /* ==================================================================== */
@@ -847,6 +877,250 @@ var GLR = (function () {
   /* solid geometry: ball, posts                                           */
   /* ==================================================================== */
 
+  /* ---- player shaders -------------------------------------------------
+     Instanced. aIns/aIns2/aIns3 are the three rows of a 3x4 matrix: the xyz of
+     each is a scaled basis vector and the w is that row's translation, so one
+     attribute triple carries orientation, size and position together.
+
+     The normal matrix is not passed in. These instances are built from an
+     orthonormal basis scaled per axis, so the correct normal transform is the
+     basis with the scales divided out — which the shader can do itself from
+     the same three rows. Sending a per-instance mat3 would be three more
+     attributes for information already present. */
+  var PLAYER_VS = HEAD + `
+  in vec3 aPos;
+  in vec3 aNrm;
+  in vec4 aIns;      // row 0: R * hw   , tx
+  in vec4 aIns2;     // row 1: -U * halfLen, ty
+  in vec4 aIns3;     // row 2: F * hd   , tz
+  in vec4 aCol;
+  in vec4 aTap;      // x = taper at y=-1, y = taper at y=+1
+  uniform mat4 uVP;
+  out vec3 vW, vN;
+  out vec3 vCol;
+  void main() {
+    /* taper across the bone's length, in object space */
+    float t = (aPos.y + 1.0) * 0.5;
+    float k = mix(aTap.x, aTap.y, t);
+    vec3 lp = vec3(aPos.x * k, aPos.y, aPos.z * k);
+
+    vec3 c0 = aIns.xyz, c1 = aIns2.xyz, c2 = aIns3.xyz;
+    vec3 w = vec3(aIns.w, aIns2.w, aIns3.w)
+           + c0 * lp.x + c1 * lp.y + c2 * lp.z;
+
+    /* normals: divide the scale out of each basis vector */
+    vec3 n0 = normalize(c0), n1 = normalize(c1), n2 = normalize(c2);
+    vec3 nn = n0 * (aNrm.x * k) + n1 * aNrm.y + n2 * (aNrm.z * k);
+
+    vW = w;
+    vN = normalize(nn);
+    vCol = aCol.rgb;
+    gl_Position = uVP * vec4(w, 1.0);
+  }
+  `;
+
+  var PLAYER_FS = HEAD + COMMON + SHADOW_CHUNK + `
+  in vec3 vW, vN;
+  in vec3 vCol;
+  out vec4 oCol;
+  void main() {
+    vec3 n = normalize(vN);
+    float ndl = dot(n, uLight);
+
+    /* Wrapped diffuse. A hard lambert term makes a limb's shaded side go flat
+       black, and on a figure this small that reads as a hole rather than as
+       shadow. Wrapping keeps the form. */
+    float d = clamp((ndl + 0.35) / 1.35, 0.0, 1.0);
+
+    /* NORMAL-OFFSET SHADOW LOOKUP.
+
+       Players cast into the shadow map now, which means they also SAMPLE it at
+       their own surface — and a depth bias alone is not enough at this scale.
+       Measured before this: the striker's shirt rendered at 44% of its base
+       colour because the torso was shadowing itself. Pushing the sample point
+       out along the normal moves it clear of the surface that wrote the depth,
+       which is the standard fix and costs one add. */
+    float sh = shadowAt(vW + n * 0.045, ndl);
+
+    /* Ambient occlusion is faked from height: a boot is in more contact with
+       the turf than a head is, so it receives less sky. It costs one multiply
+       and it is most of what grounds a figure. */
+    float ao = mix(0.74, 1.0, clamp(vW.z / 1.4, 0.0, 1.0));
+
+    /* Range matched to the canvas renderer's 0.60 - 1.02, which is what the
+       kit colours were chosen against. A physically tidier 0.34 ambient looked
+       correct in isolation and made every player muddy next to the turf. */
+    vec3 lit = vCol * (0.55 * ao + 0.55 * d * mix(0.45, 1.0, sh));
+
+    /* a cool rim from the sky, which separates a dark kit from a dark crowd */
+    vec3 V = normalize(uEye - vW);
+    float rim = pow(1.0 - clamp(dot(n, V), 0.0, 1.0), 3.0);
+    lit += vec3(0.34, 0.44, 0.58) * rim * 0.22;
+
+    lit = grade(lit);
+    float dist = length(uEye - vW);
+    oCol = vec4(applyFog(lit, dist), 1.0);
+  }
+  `;
+
+  /* Spheres: aIns is xyz = centre, w = radius. Same lighting as the limbs so a
+     joint cap does not read as a different material from the bone it joins. */
+  var PSPHERE_VS = HEAD + `
+  in vec3 aPos;
+  in vec3 aNrm;
+  in vec4 aIns;
+  in vec4 aCol;
+  uniform mat4 uVP;
+  out vec3 vW, vN;
+  out vec3 vCol;
+  void main() {
+    vec3 w = aIns.xyz + aPos * aIns.w;
+    vW = w; vN = normalize(aNrm); vCol = aCol.rgb;
+    gl_Position = uVP * vec4(w, 1.0);
+  }
+  `;
+
+  /* ---- the head -------------------------------------------------------
+     Its own program, because a head is the one part of a footballer that has
+     to carry identity and a sphere with a hair-coloured sphere on top cannot.
+     Everything is analytic in HEAD-LOCAL space, which the instance basis gives
+     for free: object X maps to the head's right, Y to its up, Z to its facing.
+     So the fragment shader knows where the face is without a texture, a UV
+     unwrap, or a second mesh.
+
+     Doing it per-pixel rather than as screen-space marks (which is what the
+     canvas renderer does) means it stays correct at any zoom and rotates with
+     the head instead of sliding across it. The canvas version had to be
+     switched off below 74 px because the marks merged into a dark band; this
+     just gets smaller. */
+  var HEAD_FS = HEAD + COMMON + SHADOW_CHUNK + `
+  in vec3 vW, vN;
+  in vec3 vCol;      // skin
+  in vec3 vHair;
+  in vec3 vLocal;    // position on the unit sphere, head-local
+  in float vStyle;
+  out vec4 oCol;
+
+  void main() {
+    vec3 q = normalize(vLocal);
+    vec3 base = vCol;
+
+    /* ---- hair -------------------------------------------------------
+       A cap above a latitude, with a fringe that sits lower at the back than
+       the front so there is a hairline rather than a bowl. Style shifts the
+       latitude and the fringe: 0 fade, 1 fuller crop, 2 topknot, 3 shaved. */
+    float st = vStyle;
+    float lat  = st < 0.5 ? 0.16 : (st < 1.5 ? 0.02 : (st < 2.5 ? 0.10 : 0.34));
+    float back = st < 0.5 ? 0.16 : (st < 1.5 ? 0.30 : (st < 2.5 ? 0.22 : 0.06));
+    /* q.z > 0 is the face side: raise the boundary there */
+    float edge = lat + back * (-q.z) * 0.5;
+    float hairMask = smoothstep(edge - 0.05, edge + 0.05, q.y);
+    if (st > 2.5) hairMask *= 0.55;            // shaved: a shadow, not a cap
+    base = mix(base, vHair, hairMask);
+
+    /* topknot: a small blob behind the crown */
+    if (st > 1.5 && st < 2.5) {
+      float k = 1.0 - smoothstep(0.0, 0.42, length(q - normalize(vec3(0.0, 0.95, -0.45))));
+      base = mix(base, vHair, k);
+    }
+
+    /* ---- the face, only on the facing hemisphere -------------------- */
+    float faceSide = smoothstep(0.18, 0.42, q.z);
+    if (faceSide > 0.001) {
+      /* brow: a band across, above the eye line. Carries more identity than
+         any other single mark on a face this small. */
+      float brow = (1.0 - smoothstep(0.030, 0.075, abs(q.y - 0.235)))
+                 * (1.0 - smoothstep(0.30, 0.56, abs(q.x)));
+      base = mix(base, base * 0.42, brow * faceSide * 0.85);
+
+      /* eyes: two almonds either side of centre */
+      vec2 e = vec2(abs(q.x) - 0.235, q.y - 0.075);
+      float eye = 1.0 - smoothstep(0.055, 0.105, length(e * vec2(1.0, 1.45)));
+      base = mix(base, vec3(0.11, 0.09, 0.07), eye * faceSide);
+
+      /* a catch light in the upper inner corner of each eye */
+      vec2 g = vec2(abs(q.x) - 0.205, q.y - 0.110);
+      float glint = 1.0 - smoothstep(0.014, 0.030, length(g));
+      base = mix(base, vec3(0.92, 0.95, 1.0), glint * faceSide * 0.8);
+
+      /* mouth: a slight downward set */
+      float mo = (1.0 - smoothstep(0.020, 0.048, abs(q.y + 0.235 + q.x * q.x * 0.34)))
+               * (1.0 - smoothstep(0.11, 0.22, abs(q.x)));
+      base = mix(base, base * 0.60, mo * faceSide * 0.7);
+    }
+
+    vec3 n = normalize(vN);
+    float ndl = dot(n, uLight);
+    float d = clamp((ndl + 0.35) / 1.35, 0.0, 1.0);
+    float sh = shadowAt(vW + n * 0.045, ndl);
+    vec3 lit = base * (0.55 + 0.55 * d * mix(0.45, 1.0, sh));
+
+    vec3 V = normalize(uEye - vW);
+    float rim = pow(1.0 - clamp(dot(n, V), 0.0, 1.0), 3.0);
+    lit += vec3(0.34, 0.44, 0.58) * rim * 0.20;
+
+    lit = grade(lit);
+    oCol = vec4(applyFog(lit, length(uEye - vW)), 1.0);
+  }
+  `;
+
+  var HEAD_VS = HEAD + `
+  in vec3 aPos;
+  in vec3 aNrm;
+  in vec4 aIns;      // row 0: R * r, tx
+  in vec4 aIns2;     // row 1: U * r, ty
+  in vec4 aIns3;     // row 2: F * r, tz
+  in vec4 aCol;      // skin
+  in vec4 aTap;      // rgb = hair, w = style
+  uniform mat4 uVP;
+  out vec3 vW, vN, vCol, vHair, vLocal;
+  out float vStyle;
+  void main() {
+    vec3 c0 = aIns.xyz, c1 = aIns2.xyz, c2 = aIns3.xyz;
+    vec3 w = vec3(aIns.w, aIns2.w, aIns3.w)
+           + c0 * aPos.x + c1 * aPos.y + c2 * aPos.z;
+    vW = w;
+    vN = normalize(normalize(c0) * aNrm.x + normalize(c1) * aNrm.y + normalize(c2) * aNrm.z);
+    vCol = aCol.rgb;
+    vHair = aTap.rgb;
+    vStyle = aTap.w;
+    vLocal = aPos;
+    gl_Position = uVP * vec4(w, 1.0);
+  }
+  `;
+
+  /* depth-only variants for the shadow pass. Same attribute layout, which is
+     why the locations are bound explicitly in GLX.prog. */
+  var PLAYER_DEPTH_VS = HEAD + `
+  in vec3 aPos;
+  in vec4 aIns;
+  in vec4 aIns2;
+  in vec4 aIns3;
+  in vec4 aTap;
+  uniform mat4 uVP;
+  void main() {
+    float t = (aPos.y + 1.0) * 0.5;
+    float k = mix(aTap.x, aTap.y, t);
+    vec3 lp = vec3(aPos.x * k, aPos.y, aPos.z * k);
+    vec3 w = vec3(aIns.w, aIns2.w, aIns3.w)
+           + aIns.xyz * lp.x + aIns2.xyz * lp.y + aIns3.xyz * lp.z;
+    gl_Position = uVP * vec4(w, 1.0);
+  }
+  `;
+
+  var PSPHERE_DEPTH_VS = HEAD + `
+  in vec3 aPos;
+  in vec4 aIns;
+  uniform mat4 uVP;
+  void main() {
+    gl_Position = uVP * vec4(aIns.xyz + aPos * aIns.w, 1.0);
+  }
+  `;
+
+  var DEPTH_ONLY_FS = HEAD + `
+  void main() {}
+  `;
+
   var SOLID_VS = HEAD + `
   in vec3 aPos;
   in vec3 aNrm;
@@ -1138,6 +1412,12 @@ var GLR = (function () {
     P.metal  = GLX.prog("metal", SOLID_VS, METAL_FS);
     P.net    = GLX.prog("net", NET_VS, NET_FS);
     P.depth  = GLX.prog("depth", DEPTH_VS, DEPTH_FS);
+    P.player            = GLX.prog("player", PLAYER_VS, PLAYER_FS);
+    P.playerSphere      = GLX.prog("playerSphere", PSPHERE_VS, PLAYER_FS);
+    P.playerDepth       = GLX.prog("playerDepth", PLAYER_DEPTH_VS, DEPTH_ONLY_FS);
+    P.playerSphereDepth = GLX.prog("playerSphereDepth", PSPHERE_DEPTH_VS, DEPTH_ONLY_FS);
+    P.head              = GLX.prog("head", HEAD_VS, HEAD_FS);
+    P.headDepth         = GLX.prog("headDepth", PLAYER_DEPTH_VS, DEPTH_ONLY_FS);
     P.stand  = GLX.prog("stand", STAND_VS, STAND_FS);
     P.crowd  = GLX.prog("crowd", CROWD_VS, CROWD_FS);
     P.trail  = GLX.prog("trail", TRAIL_VS, TRAIL_FS);
@@ -1182,6 +1462,21 @@ var GLR = (function () {
     size();
     /* set here rather than in the initRender wrapper so the harness can call
        GLR.boot() on a page that has already started */
+    if (!buildPlayerMeshes()) {
+      console.warn("[gl] player meshes failed — players stay on canvas");
+      DBG.players = 0;
+    }
+
+    /* the post chain is optional: if the float target or any of its programs
+       fail we fall back to rendering straight to the back buffer */
+    if (typeof GPOST !== "undefined" && GPOST.build(gl)) {
+      if (!GPOST.resize(glc.width || 2, glc.height || 2)) {
+        console.warn("[gl] post targets unavailable — rendering direct");
+      }
+    } else {
+      console.warn("[gl] post chain unavailable — rendering direct");
+    }
+
     live = true;
     return true;
   }
@@ -1455,19 +1750,31 @@ var GLR = (function () {
     M4.trs(mModel, b.x, b.y, b.z + R, R, R, R);
     emit(D, MESH.ballDepth, true);
     drawPosts(D, true);
+    /* players cast too — this is the thing the canvas renderer could never do,
+       and it is what makes a figure look like it is standing on the grass
+       rather than floating above a decal */
+    if (DBG.players) { collectPlayers(world); drawPlayers(true); }
     gl.colorMask(true, true, true, true);
 
-    /* ---- main pass ---------------------------------------------------- */
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.viewport(0, 0, W, H);
+    /* ---- main pass ----------------------------------------------------
+       Into the HDR scene target when post-processing is available, otherwise
+       straight to the back buffer. Keeping both paths means a driver that
+       cannot give us a float target still renders the game. */
+    var vw = Math.round(VP.w * dpr()), vh = Math.round(VP.h * dpr());
+    POSTING = usePost && DBG.post && typeof GPOST !== "undefined" &&
+              GPOST.ready() && GPOST.resize(W, H) && GPOST.begin();
+    if (!POSTING) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      gl.viewport(0, 0, W, H);
+    }
     gl.disable(gl.SCISSOR_TEST);
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     /* everything is drawn inside the portrait play area, exactly like VP */
     gl.enable(gl.SCISSOR_TEST);
-    gl.viewport(vpx(), vpy(), Math.round(VP.w * dpr()), Math.round(VP.h * dpr()));
-    gl.scissor(vpx(), vpy(), Math.round(VP.w * dpr()), Math.round(VP.h * dpr()));
+    gl.viewport(vpx(), vpy(), vw, vh);
+    gl.scissor(vpx(), vpy(), vw, vh);
 
     var C = cond();
 
@@ -1550,6 +1857,9 @@ var GLR = (function () {
     M4.trs(mModel, b.x, b.y, b.z + R, R, R, R);
     emit(B, MESH.ball, false);
 
+    /* players, in the same depth buffer as everything else */
+    if (DBG.players) drawPlayers(false);
+
     /* the trail, additive and depth-tested but not depth-written, so it can
        pass behind a post without punching a hole in it */
     var tn = buildTrail(b);
@@ -1585,6 +1895,402 @@ var GLR = (function () {
     gl.depthMask(true);
     gl.disable(gl.BLEND);
     gl.disable(gl.SCISSOR_TEST);
+
+    /* ---- post-processing ---------------------------------------------- */
+    if (POSTING) runPost(world, dt);
+  }
+
+  /* The grade. Every number here is derived from the condition rather than
+     being a look chosen once, so a floodlit night and a golden-hour afternoon
+     tonemap differently instead of sharing one filter.
+
+     Focus is pinned to the ball. That is the whole reason depth of field is
+     worth having in a football game: the ball is what the player is tracking,
+     so keeping it sharp while the crowd behind it goes soft reads as a long
+     lens following the action. Focusing on the camera's centre distance
+     instead would blur the ball whenever it left the middle of the frame. */
+  function runPost(world, dt) {
+    var C = cond();
+    var b = world.ball;
+
+    /* distance from eye to ball, for the focus plane */
+    var fx = b.x - eye[0], fy = b.y - eye[1], fz = (b.z + PHYS.BALL_R) - eye[2];
+    var focusDist = Math.max(2, Math.hypot(fx, fy, fz));
+
+    /* Bloom rides on how much of the light is artificial. By day the sun is
+       broad and the glare is modest; under floodlights every lamp is a point
+       source and the air does the rest. */
+    var bloom = 0.30 + C.flood * 0.55 + (C.wet || 0) * 0.18;
+    var knee  = 0.98 - C.flood * 0.20;
+
+    /* Exposure sits at 1.0 by default and only nudges. The scene shaders
+       already grade for the condition, so anything more than a nudge here
+       double-applies it — the same mistake as double-tonemapping, just
+       quieter. */
+    var expo = 0.98 + C.light * 0.06;
+
+    /* colour temperature: warm pulls red, cool pulls blue */
+    var w = (C.warm - 0.5);
+    var tint = [1 + w * 0.10, 1 + w * 0.012, 1 - w * 0.13];
+
+    /* Depth of field is deliberately gentle. On a 390 px-wide frame a strong
+       blur reads as a smeared mess rather than as a lens, and the crowd is
+       already the busiest thing in the picture. */
+    var dof = 0.34 + (1 - C.light) * 0.16;
+
+    /* Motion blur scales with how fast the camera is actually moving, which is
+       what the reprojection measures anyway — this is just a ceiling. Cut it
+       during hit-stop: freezing the frame and blurring it is contradictory. */
+    var frozen = (typeof FEEL !== "undefined" && FEEL.timeScale() < 0.02);
+    var mblur = frozen ? 0 : 0.55;
+
+    /* CUTS.
+
+       Reprojected motion blur cannot tell a fast pan from a cut: both put a
+       large screen-space velocity on every pixel. On a cut that is wrong in the
+       worst way — the whole frame smears into unreadable streaks, and this game
+       cuts twice on every attempt (into the goal camera's first beat, and into
+       the miss camera).
+
+       So a cut is detected geometrically and the blur is skipped for that
+       frame. The threshold is generous because the play camera never moves this
+       far in a sixtieth of a second: it is a follow, not a teleport. */
+    var moved = Math.hypot(eye[0] - prevEye[0], eye[1] - prevEye[1], eye[2] - prevEye[2]);
+    var turned = 1 - (basis.f[0] * prevFwd[0] + basis.f[1] * prevFwd[1] + basis.f[2] * prevFwd[2]);
+    if (moved > 2.2 || turned > 0.010) mblur = 0;
+    prevEye[0] = eye[0]; prevEye[1] = eye[1]; prevEye[2] = eye[2];
+    prevFwd[0] = basis.f[0]; prevFwd[1] = basis.f[1]; prevFwd[2] = basis.f[2];
+
+    M4.invert(mInvVP, mVP);
+
+    GPOST.end({
+      vp: mVP, invVP: mInvVP,
+      near: NEARZ, far: FAR,
+      focus: [focusDist, dof],
+      bloom: bloom, knee: knee,
+      exposure: expo, tint: tint,
+      /* a touch more saturation and contrast under lights, where the scene is
+         naturally flatter — kept small enough to stay a nudge */
+      sat: 1.0 + (1 - C.light) * 0.06,
+      contrast: 1.0 + C.flood * 0.035,
+      vig: [0.20 + (1 - C.light) * 0.14, 0.34],
+      grain: 0.010 + (1 - C.light) * 0.010,
+      mblur: mblur,
+      time: (typeof CROWD_T !== "undefined") ? CROWD_T : 0,
+      eye: eye,
+      viewport: [vpx(), vpy(), Math.round(VP.w * dpr()), Math.round(VP.h * dpr())]
+    });
+  }
+
+  /* ==================================================================== */
+  /* PLAYERS                                                               */
+  /* ==================================================================== */
+
+  /* The last thing on the canvas layer, and the reason the hybrid had a seam:
+     canvas players drew soft blob shadows next to the ball's hard cast one, a
+     player in front of the ball painted over it, and none of them received the
+     depth of field, the bloom or the grade that everything else in the frame
+     did.
+
+     They are built from the SAME rig anim.js already drives. solveRig() gives
+     joint frames on the CPU; each bone becomes one instance of a unit tapered
+     cylinder, each joint cap one instance of a unit sphere. Roughly 26 limb
+     instances and 9 sphere instances per player, so a full squad is two draw
+     calls of a few hundred instances — nothing.
+
+     Not GPU skinning. Skinning would matter if these were smooth meshes with
+     weighted vertices; they are jointed solids, and the canvas renderer
+     established that jointed solids read correctly at this camera distance.
+     Rebuilding them as a skinned mesh would cost a great deal and change
+     almost nothing on screen.
+
+     What DOES change, and is the whole point: they are now in the depth buffer.
+     No painter's bias, no "geometry that is permanently hidden is simply not
+     built", real cast shadows onto the turf and onto each other, and every
+     post-processing pass applies to them. */
+
+  var PLI = null;              // limb instance buffers
+  var PSI = null;              // joint-cap sphere instance buffers
+  var PHI = null;              // head instance buffers
+  var PL_MAX = 640, PS_MAX = 240, PH_MAX = 32;
+  var pl_m0, pl_m1, pl_m2, pl_col, pl_tap, pl_n;
+  var ps_m0, ps_col, ps_n;
+  var ph_m0, ph_m1, ph_m2, ph_col, ph_tap, ph_n;
+
+  /* A unit tapered cylinder: axis along Y from -1 to +1, radius 1 in X and Z.
+     The taper is applied in the vertex shader from aTap so one mesh serves a
+     thigh, a sleeve and a neck. */
+  function unitCyl(sides) {
+    var pos = [], nrm = [], idx = [], i;
+    for (i = 0; i < sides; i++) {
+      var a = i / sides * Math.PI * 2;
+      var cx = Math.cos(a), cz = Math.sin(a);
+      pos.push(cx, -1, cz); nrm.push(cx, 0, cz);
+      pos.push(cx,  1, cz); nrm.push(cx, 0, cz);
+    }
+    for (i = 0; i < sides; i++) {
+      var a0 = i * 2, a1 = a0 + 1;
+      var b0 = ((i + 1) % sides) * 2, b1 = b0 + 1;
+      idx.push(a0, b0, a1, a1, b0, b1);
+    }
+    /* caps, so a limb end seen head-on is not a hole */
+    var base = pos.length / 3;
+    pos.push(0, -1, 0); nrm.push(0, -1, 0);
+    pos.push(0,  1, 0); nrm.push(0,  1, 0);
+    for (i = 0; i < sides; i++) {
+      var c0 = i * 2, c1 = ((i + 1) % sides) * 2;
+      idx.push(base, c1, c0);
+      idx.push(base + 1, c0 + 1, c1 + 1);
+    }
+    return { pos: new Float32Array(pos), nrm: new Float32Array(nrm),
+             idx: new Uint16Array(idx) };
+  }
+
+  function buildPlayerMeshes() {
+    var cyl = unitCyl(10);
+    pl_m0 = new Float32Array(PL_MAX * 4);
+    pl_m1 = new Float32Array(PL_MAX * 4);
+    pl_m2 = new Float32Array(PL_MAX * 4);
+    pl_col = new Float32Array(PL_MAX * 4);
+    pl_tap = new Float32Array(PL_MAX * 4);
+    PLI = GLX.mesh(P.player, [
+      { name: "aPos", data: cyl.pos, size: 3 },
+      { name: "aNrm", data: cyl.nrm, size: 3 },
+      { name: "aIns",  data: pl_m0,  size: 4, divisor: 1, dynamic: true },
+      { name: "aIns2", data: pl_m1,  size: 4, divisor: 1, dynamic: true },
+      { name: "aIns3", data: pl_m2,  size: 4, divisor: 1, dynamic: true },
+      { name: "aCol",  data: pl_col, size: 4, divisor: 1, dynamic: true },
+      { name: "aTap",  data: pl_tap, size: 4, divisor: 1, dynamic: true }
+    ], cyl.idx);
+
+    var sp = sphere(10, 14);
+
+    /* the head gets more segments than a joint cap: it is the one sphere the
+       player actually looks at, and the face is drawn per-pixel on it */
+    var hsp = sphere(18, 26);
+    ph_m0 = new Float32Array(PH_MAX * 4);
+    ph_m1 = new Float32Array(PH_MAX * 4);
+    ph_m2 = new Float32Array(PH_MAX * 4);
+    ph_col = new Float32Array(PH_MAX * 4);
+    ph_tap = new Float32Array(PH_MAX * 4);
+    PHI = GLX.mesh(P.head, [
+      { name: "aPos", data: hsp.pos, size: 3 },
+      { name: "aNrm", data: hsp.nrm, size: 3 },
+      { name: "aIns",  data: ph_m0,  size: 4, divisor: 1, dynamic: true },
+      { name: "aIns2", data: ph_m1,  size: 4, divisor: 1, dynamic: true },
+      { name: "aIns3", data: ph_m2,  size: 4, divisor: 1, dynamic: true },
+      { name: "aCol",  data: ph_col, size: 4, divisor: 1, dynamic: true },
+      { name: "aTap",  data: ph_tap, size: 4, divisor: 1, dynamic: true }
+    ], hsp.idx);
+
+    ps_m0 = new Float32Array(PS_MAX * 4);
+    ps_col = new Float32Array(PS_MAX * 4);
+    PSI = GLX.mesh(P.playerSphere, [
+      { name: "aPos", data: sp.pos, size: 3 },
+      { name: "aNrm", data: sp.nrm, size: 3 },
+      { name: "aIns", data: ps_m0,  size: 4, divisor: 1, dynamic: true },
+      { name: "aCol", data: ps_col, size: 4, divisor: 1, dynamic: true }
+    ], sp.idx);
+    return !!(PLI && PSI && PHI);
+  }
+
+  /* One head. The basis rows carry the head's own right/up/facing scaled by the
+     radius, which is what lets the fragment shader put the face on the front. */
+  function headIns(o, R, U, F, r, skin, hair, style) {
+    if (ph_n >= PH_MAX) return;
+    var i = ph_n * 4;
+    ph_m0[i] = R.x * r; ph_m0[i+1] = R.y * r; ph_m0[i+2] = R.z * r; ph_m0[i+3] = o.x;
+    ph_m1[i] = U.x * r; ph_m1[i+1] = U.y * r; ph_m1[i+2] = U.z * r; ph_m1[i+3] = o.y;
+    ph_m2[i] = F.x * r; ph_m2[i+1] = F.y * r; ph_m2[i+2] = F.z * r; ph_m2[i+3] = o.z;
+    GLX.col3(skin, _c);
+    ph_col[i] = _c[0]; ph_col[i+1] = _c[1]; ph_col[i+2] = _c[2]; ph_col[i+3] = 1;
+    GLX.col3(hair, _c);
+    ph_tap[i] = _c[0]; ph_tap[i+1] = _c[1]; ph_tap[i+2] = _c[2]; ph_tap[i+3] = style;
+    ph_n++;
+  }
+
+  /* --- instance emitters ------------------------------------------------ */
+
+  var _c = [0, 0, 0];
+
+  /* A bone: from `f` to `t` metres down the joint's own -U axis, half-width hw
+     across R and hd across F, tapering from ta to tb. */
+  function limbIns(j, hw, hd, f, t, ta, tb, colour) {
+    if (pl_n >= PL_MAX) return;
+    var o = pl_n * 4;
+    var halfL = (t - f) * 0.5, mid = (t + f) * 0.5;
+    /* X -> R * hw, Y -> -U * halfL (bones extend along -U), Z -> F * hd */
+    pl_m0[o]   = j.R.x * hw; pl_m0[o+1] = j.R.y * hw; pl_m0[o+2] = j.R.z * hw;
+    pl_m0[o+3] = j.o.x - j.U.x * mid;
+    pl_m1[o]   = -j.U.x * halfL; pl_m1[o+1] = -j.U.y * halfL; pl_m1[o+2] = -j.U.z * halfL;
+    pl_m1[o+3] = j.o.y - j.U.y * mid;
+    pl_m2[o]   = j.F.x * hd; pl_m2[o+1] = j.F.y * hd; pl_m2[o+2] = j.F.z * hd;
+    pl_m2[o+3] = j.o.z - j.U.z * mid;
+    GLX.col3(colour, _c);
+    pl_col[o] = _c[0]; pl_col[o+1] = _c[1]; pl_col[o+2] = _c[2]; pl_col[o+3] = 1;
+    /* taper runs along +Y in object space, which is -U in the world, so the
+       ends swap: tb belongs at y=-1 */
+    pl_tap[o] = tb; pl_tap[o+1] = ta; pl_tap[o+2] = 0; pl_tap[o+3] = 0;
+    pl_n++;
+  }
+
+  function sphereIns(p, r, colour) {
+    if (ps_n >= PS_MAX) return;
+    var o = ps_n * 4;
+    ps_m0[o] = p.x; ps_m0[o+1] = p.y; ps_m0[o+2] = p.z; ps_m0[o+3] = r;
+    GLX.col3(colour, _c);
+    ps_col[o] = _c[0]; ps_col[o+1] = _c[1]; ps_col[o+2] = _c[2]; ps_col[o+3] = 1;
+    ps_n++;
+  }
+
+  /* --- one player ------------------------------------------------------- */
+
+  /* Mirrors drawPlayer()'s body frame exactly. Any drift between the two shows
+     up as players standing at a different angle in the two renderers, which is
+     the kind of thing that is very hard to see and very hard to un-see. */
+  function emitPlayer(p, ball, world) {
+    if (typeof solveRig !== "function" || typeof Animator !== "function") return;
+
+    var kit  = p.role === "gk" ? COL.gk     : (p.team === "us" ? COL.us     : COL.them);
+    var alt  = p.role === "gk" ? COL.gkAlt  : (p.team === "us" ? COL.usAlt  : COL.themAlt);
+    var sock = p.role === "gk" ? COL.gkSock : (p.team === "us" ? COL.usSock : COL.themSock);
+    var seed = (p.num * 7 + (p.team === "us" ? 3 : 11) + (p.role === "gk" ? 5 : 0));
+    var sleeve = kit;
+    var skin = COL.skins[seed % COL.skins.length];
+    var hair = COL.hairs[(seed * 3) % COL.hairs.length];
+
+    if (!p._id) {
+      p._id = {
+        hair: (seed * 5) % 4,
+        broad: 0.94 + ((seed * 17) % 13) / 100,
+        boot: COL.bootFlash[(seed * 23) % COL.bootFlash.length]
+      };
+    }
+    var ID = p._id;
+
+    /* animation state is shared with the canvas renderer, so a player keeps
+       its clip and crossfade phase across a renderer swap */
+    if (!p._an) { p._an = new Animator(); p._rig = {}; p._an.cur = pickClip(p, world); }
+    var an = p._an;
+    var want = pickClip(p, world);
+    an.play(want, false);
+    if (an.cur === "strike" || an.cur === "chip" || an.cur === "pass") {
+      an.amp = 0.66 + (p.kickPower == null ? 0.7 : p.kickPower) * 0.42;
+    } else { an.amp = 1; }
+    if (an.cur === "run") an.t = p.anim * 0.115;
+    if (an.prev === "run") an.prevT = p.anim * 0.115;
+    var pose = an.pose();
+
+    var fa = p.face;
+    if (ball && (p.speed() < 0.6 || (p.role === "gk" && p.dive > 0.05))) {
+      fa = Math.atan2(ball.y - p.y, ball.x - p.x);
+    }
+    var F = { x: Math.cos(fa), y: Math.sin(fa), z: 0 };
+    var R = { x: F.y, y: -F.x, z: 0 };
+    var U = { x: 0, y: 0, z: 1 };
+
+    var roll = (p.role === "gk" ? p.dive : 0) * p.diveDir * 1.45;
+    if (roll) {
+      var cs = Math.cos(roll), sn = Math.sin(roll);
+      var R2 = { x: R.x * cs + U.x * sn, y: R.y * cs + U.y * sn, z: R.z * cs + U.z * sn };
+      var U2 = { x: U.x * cs - R.x * sn, y: U.y * cs - R.y * sn, z: U.z * cs - R.z * sn };
+      R = R2; U = U2;
+    }
+
+    var lift = (p.role === "gk" ? p.dive : 0) * 0.52;
+    var run = Math.min(1, p.speed() / 6.5);
+    var bob = Math.abs(Math.sin(p.anim * 0.72)) * run * 0.045;
+    var root = { x: p.x + U.x * bob, y: p.y + U.y * bob, z: lift + U.z * bob };
+
+    var J = solveRig(pose, root, R, F, U, p._rig);
+
+    var LTH = boneLen("knL"), SHN = boneLen("anL");
+    var UA = boneLen("elL"), FA2 = boneLen("haL");
+    var TOR = boneLen("chest") + boneLen("spine");
+
+    /* legs */
+    [["hipL", "knL", "anL"], ["hipR", "knR", "anR"]].forEach(function (t) {
+      var hip = J[t[0]], kn = J[t[1]], an2 = J[t[2]];
+      limbIns(hip, 0.091, 0.095, 0.16, LTH, 0.94, 0.78, skin);
+      limbIns(kn, 0.074, 0.078, 0.0, SHN * 0.30, 1.0, 0.96, skin);
+      limbIns(kn, 0.078, 0.082, SHN * 0.26, SHN * 0.88, 0.98, 0.88, sock);
+      /* boot: a short box on the foot joint, projecting along its own F */
+      var bo = { o: { x: an2.o.x + an2.F.x * 0.05,
+                      y: an2.o.y + an2.F.y * 0.05,
+                      z: an2.o.z + an2.F.z * 0.05 },
+                 R: an2.R, F: an2.F, U: an2.U };
+      limbIns(bo, 0.072, 0.126, -0.05, 0.02, 0.86, 1.0, COL.boot);
+      limbIns(bo, 0.074, 0.128, -0.028, -0.008, 0.84, 0.96, "#e8eef4");
+      sphereIns(kn.o, 0.075, skin);
+      sphereIns(hip.o, 0.092, alt);
+    });
+
+    /* shorts and torso */
+    limbIns({ o: J.pelvis.o, R: J.pelvis.R, F: J.pelvis.F, U: J.pelvis.U },
+            0.178, 0.128, -0.17, 0.175, 1.13, 1.02,
+            p.team === "us" ? "#e4eaf0" : alt);
+    limbIns(J.spine, 0.166 * ID.broad, 0.108, -TOR, 0.05, 1.40 * ID.broad, 0.96, kit);
+    limbIns(J.spine, 0.166 * ID.broad, 0.108, -TOR, -(TOR - 0.010), 1.35, 1.335, alt);
+
+    /* arms */
+    [["shL", "elL", "haL"], ["shR", "elR", "haR"]].forEach(function (t) {
+      var sh = J[t[0]], el = J[t[1]], ha = J[t[2]];
+      limbIns(el, 0.053, 0.056, -UA * 0.16, FA2, 1.02, 0.86, skin);
+      limbIns(sh, 0.066 * ID.broad, 0.069, 0.0, UA * 0.86, 1.06, 0.92, sleeve);
+      limbIns(sh, 0.064, 0.067, UA * 0.80, UA * 0.90, 0.94, 0.90, alt);
+      sphereIns(el.o, 0.055, skin);
+      sphereIns(sh.o, 0.062, sleeve);
+      sphereIns(ha.o, 0.057, p.role === "gk" ? "#f2f4f7" : skin);
+    });
+
+    /* neck and head */
+    limbIns(J.neck, 0.068, 0.066, -(boneLen("head") + 0.01), 0.06, 0.86, 1.05, skin);
+    var hd = J.head;
+    var hc = { x: hd.o.x + hd.U.x * 0.068,
+               y: hd.o.y + hd.U.y * 0.068,
+               z: hd.o.z + hd.U.z * 0.068 };
+    /* One instance, and the shader puts the hair and the face on it. The first
+       attempt stacked a hair sphere on top of the head sphere at a SMALLER
+       radius, so it was entirely inside the skull and invisible — the head just
+       looked bald. Analytic beats stacked geometry here. */
+    headIns(hc, hd.R, hd.U, hd.F, 0.127, skin, hair, ID.hair);
+  }
+
+  function collectPlayers(world) {
+    pl_n = 0; ps_n = 0; ph_n = 0;
+    var all = world.us.concat(world.them);
+    for (var i = 0; i < all.length; i++) emitPlayer(all[i], world.ball, world);
+    if (pl_n) {
+      GLX.update(PLI, "aIns", pl_m0);  GLX.update(PLI, "aIns2", pl_m1);
+      GLX.update(PLI, "aIns3", pl_m2); GLX.update(PLI, "aCol", pl_col);
+      GLX.update(PLI, "aTap", pl_tap);
+    }
+    if (ps_n) {
+      GLX.update(PSI, "aIns", ps_m0); GLX.update(PSI, "aCol", ps_col);
+    }
+    if (ph_n) {
+      GLX.update(PHI, "aIns", ph_m0);  GLX.update(PHI, "aIns2", ph_m1);
+      GLX.update(PHI, "aIns3", ph_m2); GLX.update(PHI, "aCol", ph_col);
+      GLX.update(PHI, "aTap", ph_tap);
+    }
+  }
+
+  function drawPlayers(depthOnly) {
+    if (!pl_n && !ps_n) return;
+    var L = GLX.use(depthOnly ? P.playerDepth : P.player);
+    if (depthOnly) gl.uniformMatrix4fv(L.u.uVP, false, mLightVP);
+    else setCommon(L);
+    if (pl_n) GLX.draw(PLI, gl.TRIANGLES, pl_n);
+
+    var S = GLX.use(depthOnly ? P.playerSphereDepth : P.playerSphere);
+    if (depthOnly) gl.uniformMatrix4fv(S.u.uVP, false, mLightVP);
+    else setCommon(S);
+    if (ps_n) GLX.draw(PSI, gl.TRIANGLES, ps_n);
+
+    var Hd = GLX.use(depthOnly ? P.headDepth : P.head);
+    if (depthOnly) gl.uniformMatrix4fv(Hd.u.uVP, false, mLightVP);
+    else setCommon(Hd);
+    if (ph_n) GLX.draw(PHI, gl.TRIANGLES, ph_n);
   }
 
   /* ==================================================================== */
@@ -1596,7 +2302,11 @@ var GLR = (function () {
      flips the whole thing back. */
   var TAKEN = ["drawSky", "drawStadium", "drawDepthHaze", "drawPitch",
                "drawFloodPools", "drawGrain", "drawRings", "drawGoal",
-               "drawCornerFlags", "drawBall", "drawGrade"];
+               "drawCornerFlags", "drawBall", "drawGrade",
+               /* the actors moved to GL, so the canvas pass has to stop drawing
+                  them or every player is rendered twice — once correctly in the
+                  depth buffer and once as a flat sprite over the top */
+               "drawPlayer"];
 
   var ORIG = {};        // the canvas passes, kept so they can be put back
   var usingGL = true;
@@ -1632,8 +2342,12 @@ var GLR = (function () {
       initCanvas();
       live = boot();
       if (!live) {
+        /* Persist the opt-out rather than editing the URL. GL is the default
+           now, so stripping a query parameter would just re-enable it on the
+           next load and loop. */
         console.warn("[gl] boot failed — reverting to the canvas renderer");
-        location.search = location.search.replace(/[?&]gl=1/, "");
+        try { localStorage.setItem("goalio_gl", "0"); } catch (e) {}
+        useCanvas(true);
       }
     };
 
@@ -1660,7 +2374,11 @@ var GLR = (function () {
     progs: P,
     dbg: DBG,
     useCanvas: useCanvas,
-    stats: function () { return { crowd: CROWD_N, rows: BOWL.rows, K: BOWL.K }; },
+    stats: function () {
+      return { crowd: CROWD_N, rows: BOWL.rows, K: BOWL.K,
+               post: !!(typeof GPOST !== "undefined" && GPOST.ready()),
+               posting: POSTING };
+    },
     frame: frame,
     boot: boot,
     on_: function () { try { localStorage.setItem("goalio_gl", "1"); } catch (e) {} location.reload(); },

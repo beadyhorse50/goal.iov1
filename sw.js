@@ -17,7 +17,7 @@
 
    Bump VERSION on release. Old caches are deleted on activate.
 */
-var VERSION = "v5";
+var VERSION = "v6";
 var CACHE = "goalio-" + VERSION;
 
 /* Every file the game needs to boot. Missing one here does not break the site
@@ -32,6 +32,7 @@ var ASSETS = [
   "./js/audio.js",
   "./js/render.js",
   "./js/gl.js",
+  "./js/post.gl.js",
   "./js/render.gl.js",
   "./js/fx.js",
   "./js/game.js",

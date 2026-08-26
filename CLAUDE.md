@@ -2,7 +2,7 @@
 
 A swipe-to-shoot football game, built as an installable mobile PWA. No engine, no
 build step, no dependencies: plain JS and a hand-written 3D renderer on a 2D
-canvas. Open `index.html` and it runs.
+WebGL renderer (with the older canvas renderer intact as a fallback). Open `index.html` and it runs.
 
 **Live:** https://beadyhorse50.github.io/goal.iov1/
 **Repo:** https://github.com/beadyhorse50/goal.iov1 (branch `main`, Pages from root)
@@ -15,12 +15,15 @@ canvas. Open `index.html` and it runs.
   hard way.
 - **`../REVIEW.md`** — competitor review and pre-release critique, scored, with
   what is closed and what is still open.
-- **`WEBGL.md`** — there is a **second renderer**, in `js/gl.js` and
-  `js/render.gl.js`, unfinished and **off by default**. Turn it on with `?gl=1`
-  or `localStorage.goalio_gl = "1"`. With the flag off both files parse, define
-  their globals and do nothing, so the canvas renderer is what ships. Do not
-  assume those files are dead code, and do not make the WebGL path the default
-  until it beats the canvas one.
+- **`WEBGL.md`** — **the WebGL renderer is the default.** `js/gl.js`,
+  `js/post.gl.js`, `js/render.gl.js`. It draws the world, the players and a full
+  post chain (bloom, depth of field, reprojected motion blur, a highlight
+  shoulder, grading); the canvas renderer in `js/render.js` is still complete and
+  is the automatic fallback if WebGL2 or any shader fails. `?gl=0` forces canvas.
+  Read WEBGL.md before touching either — in particular the three post-chain traps
+  (RGBA16F needs `EXT_color_buffer_float` or it fails silently; do not run a full
+  filmic tonemap over a display-referred scene; reprojected motion blur must skip
+  camera cuts).
 
 ## The environment
 
@@ -80,8 +83,8 @@ The user's workflow is: describe the change, then say "push it".
 git add -A && git commit -m "what changed" && git push
 ```
 
-**If anything in `js/` or `index.html` changed, bump `VERSION` in `sw.js`** (`v5`
--> `v6`) so installed copies update. And if you add a new file to `js/`, add it to
+**If anything in `js/` or `index.html` changed, bump `VERSION` in `sw.js`** (`v6`
+-> `v7`) so installed copies update. And if you add a new file to `js/`, add it to
 `ASSETS` in `sw.js` — forgetting breaks the game *offline only*, which is very
 easy to ship by accident.
 

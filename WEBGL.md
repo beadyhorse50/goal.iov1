@@ -344,3 +344,26 @@ the measurement corrected it.
 Add a graphics-quality setting before shipping to a wide device range: the post
 chain is the obvious thing to drop on a weak GPU, and `GLR.dbg.post = 0` already
 does exactly that.
+
+## Two traps that cost hours each
+
+**Never put a backtick in a comment inside a shader template literal.** Every
+shader in `js/render.gl.js` is a template literal. A backtick in a `/* */` inside
+one terminates the literal early and shifts every literal boundary after it, so
+the failure surfaces as `SyntaxError: Unexpected identifier` on some innocent
+word plus a shader error about an undeclared identifier hundreds of lines away in
+a *different* shader. It happened twice. There are now no backticks anywhere in
+that file outside the delimiters themselves — keep it that way.
+
+**When lighting looks wrong, render the normal, not the light.** Under the old
+hand-tuned shaders the limb mesh had been wound inside-out since it was written:
+back-face culling meant the *inside of the far wall* was what rasterised, and
+because a cylinder's silhouette is identical either way the shape looked
+perfectly correct. Wrapped diffuse plus a flat ambient hid it completely. A real
+BRDF did not — `dot(N,V)` went negative across every limb and the diffuse term
+vanished.
+
+Four rounds of reasoning about the vertex shader's basis maths did not find it.
+One frame of `oCol = vec4(n * 0.5 + 0.5, 1.0)` did, immediately. `shots/dbg-nrm.png`
+and `shots/dbg-ndv.png` are kept as references for what right and wrong look
+like.

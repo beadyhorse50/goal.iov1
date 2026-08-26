@@ -15,6 +15,11 @@ WebGL renderer (with the older canvas renderer intact as a fallback). Open `inde
   hard way.
 - **`../REVIEW.md`** — competitor review and pre-release critique, scored, with
   what is closed and what is still open.
+- **`../GRAPHICS-AUDIT.md`** — what the renderer can and cannot do, every
+  limitation that stands between it and AAA, and the exact assets that would have
+  to be imported to lift each one. Read this before proposing a graphics feature:
+  several obvious ones (reflections, skinned characters, textured kits) are
+  blocked on assets that do not exist in the project, and the doc says so.
 - **`WEBGL.md`** — **the WebGL renderer is the default.** `js/gl.js`,
   `js/post.gl.js`, `js/render.gl.js`. It draws the world, the players and a full
   post chain (bloom, depth of field, reprojected motion blur, a highlight

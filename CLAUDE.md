@@ -15,6 +15,12 @@ canvas. Open `index.html` and it runs.
   hard way.
 - **`../REVIEW.md`** — competitor review and pre-release critique, scored, with
   what is closed and what is still open.
+- **`WEBGL.md`** — there is a **second renderer**, in `js/gl.js` and
+  `js/render.gl.js`, unfinished and **off by default**. Turn it on with `?gl=1`
+  or `localStorage.goalio_gl = "1"`. With the flag off both files parse, define
+  their globals and do nothing, so the canvas renderer is what ships. Do not
+  assume those files are dead code, and do not make the WebGL path the default
+  until it beats the canvas one.
 
 ## The environment
 

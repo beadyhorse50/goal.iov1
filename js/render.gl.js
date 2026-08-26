@@ -42,6 +42,7 @@ var GLR = (function () {
 
   var P = {};                 // programs
   var MESH = {};              // meshes
+  var TEX = {};               // textures
   var SHADOW = null;
 
   /* scratch matrices — allocated once, a renderer that allocates per frame
@@ -353,6 +354,25 @@ var GLR = (function () {
       lit += uSkyH * uWet * 0.10 * pow(1.0 - max(dot(N, V), 0.0), 3.0);
     }
 
+    /* FLOODLIGHT POOLS.
+
+       Four rigs, as in the canvas renderer — but there they are screen-space
+       radial gradients, which means the pools slide across the turf whenever
+       the camera moves. In world space they stay bolted to the pitch, which is
+       the entire difference between a lit ground and a lens effect. */
+    float pool = 0.0;
+    vec2 rig0 = vec2(16.5, 21.1);
+    pool += 1.0 - smoothstep(0.0, 1.0, length((p - vec2(-rig0.x, -rig0.y)) / vec2(31.0, 27.0)));
+    pool += 1.0 - smoothstep(0.0, 1.0, length((p - vec2( rig0.x, -rig0.y)) / vec2(31.0, 27.0)));
+    pool += 1.0 - smoothstep(0.0, 1.0, length((p - vec2(-rig0.x,  rig0.y)) / vec2(31.0, 27.0)));
+    pool += 1.0 - smoothstep(0.0, 1.0, length((p - vec2( rig0.x,  rig0.y)) / vec2(31.0, 27.0)));
+    lit += vec3(1.0, 0.988, 0.886) * pool * (0.014 + uCond.z * 0.085) * (1.0 - apron);
+    /* wet turf under floodlights is mostly reflection, not diffuse */
+    if (uWet > 0.01) {
+      vec3 Hp = normalize(uLight + V);
+      lit += vec3(1.0, 0.97, 0.88) * pow(max(dot(N, Hp), 0.0), 90.0) * pool * uWet * uCond.z * 0.8;
+    }
+
     float m = markings(p, aa) * (1.0 - apron) * (1.0 - wear * 0.45);
     vec3 lineC = vec3(0.94, 0.96, 0.95) * (0.62 + 0.5 * ndl * sh);
     lit = mix(lit, lineC, m);
@@ -400,7 +420,11 @@ var GLR = (function () {
     /* sampled outside the branch below: a texture fetch in non-uniform control
        flow has undefined derivatives, which shows up as the mip level popping
        along the boards as the camera pans */
-    vec4 board = texture(uBoards, vec2(vUv.x * uBoardRep,
+    /* U is negated because the boards are seen from INSIDE the bowl. The
+       perimeter path runs counter-clockwise, so walking it with increasing u
+       puts the text the right way round for a camera outside the ground and
+       backwards for every camera this game has. */
+    vec4 board = texture(uBoards, vec2(-vUv.x * uBoardRep,
                                        1.0 - clamp((vUv.y + 1.0 - 0.05) / 0.89, 0.0, 1.0)));
 
     /* Ambient occlusion down the rake. The front rows sit at the bottom of a
@@ -425,6 +449,19 @@ var GLR = (function () {
       c *= 0.70 + 0.45 * ndl;
       /* they are backlit panels, so they hold up when the light goes */
       c += board.rgb * band * (0.10 + 0.22 * uCond.z);
+    }
+
+    /* THE LIGHT BANKS.
+
+       Roof-mounted rather than on pylons: it is what almost every modern
+       ground uses, it needs no new geometry, and at night it puts a hard row
+       of highlights along the top of the frame — which is the shape your eye
+       actually reads as "floodlit" long before it reads the pitch. */
+    if (uRoof > 0.5) {
+      float inEdge = 1.0 - smoothstep(0.05, 0.17, vUv.y - 1.0);
+      float lampX = step(0.68, fract(vUv.x * 34.0));
+      float lamp = inEdge * lampX;
+      c += vec3(1.0, 0.97, 0.88) * lamp * (0.12 + uCond.z * 1.35);
     }
 
     /* THE SEATS.
@@ -665,8 +702,10 @@ var GLR = (function () {
       var Bi = [b2.x + b2.nx * oIn, b2.y + b2.ny * oIn, zTop];
       var Ao = [a2.x + a2.nx * (oTop + 2), a2.y + a2.ny * (oTop + 2), zTop + 1.5];
       var Bo = [b2.x + b2.nx * (oTop + 2), b2.y + b2.ny * (oTop + 2), zTop + 1.5];
+      /* uv.y runs 1 at the inner lip to 2 at the back, which is what lets the
+         shader hang the light banks off the front edge where they belong */
       quad(Bi, Ai, Ao, Bo, [0, 0, -1],
-           [[b2.t, 1], [a2.t, 1], [a2.t, 1], [b2.t, 1]]);
+           [[b2.t, 1], [a2.t, 1], [a2.t, 2], [b2.t, 2]]);
       /* the fascia hanging off the front edge — where a ground puts its name */
       var Af = [Ai[0], Ai[1], zTop - 1.7], Bf = [Bi[0], Bi[1], zTop - 1.7];
       quad(Af, Bf, Bi, Ai, [-a2.nx, -a2.ny, 0],
@@ -678,9 +717,55 @@ var GLR = (function () {
       { name: "aUv", size: 2, data: new Float32Array(uv) }
     ], new Uint32Array(idx));
 
+    /* board and seat frequency come from the real arc length of the wall, not
+       from a number that looked right — a board is 5.2 m wide wherever it is */
+    var wallLen = 0;
+    for (i = 0; i < BOWL.K; i++) {
+      wallLen += Math.hypot(path[i + 1].x - path[i].x, path[i + 1].y - path[i].y);
+    }
+    var ads = (typeof ADS !== "undefined") ? ADS.length : 1;
+    BOARD_REP = Math.max(1, Math.round(wallLen / BOARD_M / ads));
+    SEATS_ROUND = Math.round(wallLen / 0.54);
+    TEX.boards = boardTexture();
+
     buildCrowd(path);
   }
 
+  /* The hoardings, as a texture rather than as geometry. render.js draws each
+     board as a quad with quadText() over it; here the whole run is one strip
+     repeated around the bowl, which is one draw and stays sharp at any angle
+     because the sampler is doing anisotropic filtering rather than the
+     painter's algorithm.
+
+     Same sponsors, same colours, same order as ADS in render.js — a different
+     set of boards in the two renderers would be a tell every time the flag was
+     flipped. */
+  var BOARD_M = 5.2;              // metres per board, as the canvas renderer uses
+  function boardTexture() {
+    var ads = (typeof ADS !== "undefined") ? ADS : [{ t: "goal.io", bg: "#f4f7fa", fg: "#12305a" }];
+    var PW = 256, PH = 96;
+    var c = document.createElement("canvas");
+    c.width = PW * ads.length; c.height = PH;
+    var x = c.getContext("2d");
+    for (var i = 0; i < ads.length; i++) {
+      var ad = ads[i];
+      x.fillStyle = ad.bg;
+      x.fillRect(i * PW, 0, PW, PH);
+      x.fillStyle = ad.fg;
+      x.font = "900 " + Math.round(PH * 0.52) + "px 'Arial Narrow', Haettenschweiler, Impact, system-ui, sans-serif";
+      x.textAlign = "center"; x.textBaseline = "middle";
+      x.fillText(ad.t, i * PW + PW / 2, PH * 0.55);
+      x.strokeStyle = "rgba(0,0,0,.22)"; x.lineWidth = 3;
+      x.strokeRect(i * PW + 1.5, 1.5, PW - 3, PH - 3);
+    }
+    /* the dark lip along the top, which is what stops a board reading as a
+       painted stripe on a wall */
+    x.fillStyle = "#20262e";
+    x.fillRect(0, 0, c.width, PH * 0.07);
+    return GLX.texFromCanvas(c, { repeat: true });
+  }
+
+  var BOARD_REP = 8, SEATS_ROUND = 700;
   var CROWD_N = 0;
   function buildCrowd(path) {
     var seats = [], cols = [], seeds = [];
@@ -893,6 +978,29 @@ var GLR = (function () {
   }
   `;
 
+  /* THE MOTION TRAIL.
+
+     Taking drawBall() away took the trail with it, and a struck ball with no
+     comet behind it reads as slower than the same ball with one — the canvas
+     renderer scales its width and opacity by pace for exactly that reason, and
+     this keeps the same rule. Built as camera-facing quads in world space so
+     it sits correctly in the depth buffer instead of being painted over
+     everything the way a 2D stroke has to be. */
+  var TRAIL_VS = HEAD + `
+  in vec3 aPos;
+  in vec2 aUv;                 // x: alpha along the trail
+  uniform mat4 uVP;
+  out float vA;
+  void main() { vA = aUv.x; gl_Position = uVP * vec4(aPos, 1.0); }
+  `;
+
+  var TRAIL_FS = HEAD + `
+  precision highp float;
+  in float vA;
+  out vec4 oCol;
+  void main() { oCol = vec4(vec3(0.839, 0.925, 1.0) * vA, vA); }
+  `;
+
   /* depth-only pass for the shadow map */
   var DEPTH_VS = HEAD + `
   in vec3 aPos;
@@ -1032,6 +1140,7 @@ var GLR = (function () {
     P.depth  = GLX.prog("depth", DEPTH_VS, DEPTH_FS);
     P.stand  = GLX.prog("stand", STAND_VS, STAND_FS);
     P.crowd  = GLX.prog("crowd", CROWD_VS, CROWD_FS);
+    P.trail  = GLX.prog("trail", TRAIL_VS, TRAIL_FS);
     for (var k in P) {
       if (P.hasOwnProperty(k) && !P[k]) { console.error("[gl] program " + k + " failed"); return false; }
     }
@@ -1060,6 +1169,14 @@ var GLR = (function () {
 
     buildNets();
     buildBowl();
+
+    /* the trail is rebuilt every frame, so it gets one buffer big enough for
+       the longest tape the sim will ever hand over */
+    TRAIL_MAX = 96;
+    MESH.trail = GLX.mesh(P.trail, [
+      { name: "aPos", size: 3, dynamic: true, data: new Float32Array(TRAIL_MAX * 6 * 3) },
+      { name: "aUv", size: 2, dynamic: true, data: new Float32Array(TRAIL_MAX * 6 * 2) }
+    ], null, 0);
 
     SHADOW = GLX.depthTarget(SHADOW_SIZE);
     size();
@@ -1207,6 +1324,75 @@ var GLR = (function () {
     return nrm3;
   }
 
+  var TRAIL_MAX = 96, trailPos = null, trailUv = null;
+
+  function focalPx() { return (VP.h / 2) / Math.tan(FOVY / 2); }
+
+  /* A CONTINUOUS ribbon along the trail, not one quad per segment.
+
+     Per-segment quads were the first attempt and they stack: the trail runs
+     almost straight down the view axis, so consecutive quads overlap heavily
+     in screen space, and under additive blending that overlap turns a tapering
+     comet into a solid pale bar. Sharing the edge between segments means each
+     pixel is written once and the taper survives. */
+  function buildTrail(b) {
+    var t = b.trail;
+    if (!t || t.length < 3) return 0;
+    if (!trailPos) {
+      trailPos = new Float32Array(TRAIL_MAX * 6 * 3);
+      trailUv = new Float32Array(TRAIL_MAX * 6 * 2);
+    }
+    var speed = b.speed ? b.speed() : Math.hypot(b.vx || 0, b.vy || 0);
+    var pace = Math.max(0, Math.min(1, speed / 30));
+    var fpx = focalPx();
+    var n = Math.min(t.length, TRAIL_MAX);
+    var i0 = t.length - n;
+
+    /* one left/right pair per point, then stitch */
+    var L = new Float32Array(n * 3), R = new Float32Array(n * 3), A = new Float32Array(n);
+    for (var i = 0; i < n; i++) {
+      var p = t[i0 + i];
+      var pa = t[Math.max(i0, i0 + i - 1)], pb = t[Math.min(t.length - 1, i0 + i + 1)];
+      var dx = pb.x - pa.x, dy = pb.y - pa.y, dz = pb.z - pa.z;
+      var ex = p.x - eye[0], ey = p.y - eye[1], ez = p.z + 0.12 - eye[2];
+      var sx = dy * ez - dz * ey, sy = dz * ex - dx * ez, sz = dx * ey - dy * ex;
+      var m = Math.hypot(sx, sy, sz);
+      var a = (i + 1) / n;
+      A[i] = a * a * (0.10 + pace * 0.34) * 0.55;
+      var w = 0.11 * a * (1 + pace * 1.4);
+      /* clamp in PIXELS, as the canvas trail does — a fixed world width turns
+         the segments nearest the lens into a wedge across the frame */
+      var perPx = (Math.hypot(ex, ey, ez) || 1) / fpx;
+      w = Math.max(0.7 * perPx, Math.min(w, 9 * perPx));
+      if (m < 1e-6) { sx = 1; sy = 0; sz = 0; m = 1; }
+      sx = sx / m * w; sy = sy / m * w; sz = sz / m * w;
+      L[i * 3] = p.x - sx; L[i * 3 + 1] = p.y - sy; L[i * 3 + 2] = p.z + 0.12 - sz;
+      R[i * 3] = p.x + sx; R[i * 3 + 1] = p.y + sy; R[i * 3 + 2] = p.z + 0.12 + sz;
+    }
+
+    var vi = 0, ui = 0, quads = 0;
+    for (i = 0; i < n - 1; i++) {
+      if (A[i] < 0.003 && A[i + 1] < 0.003) continue;
+      var v = [
+        [L[i*3], L[i*3+1], L[i*3+2], A[i]],
+        [R[i*3], R[i*3+1], R[i*3+2], A[i]],
+        [R[(i+1)*3], R[(i+1)*3+1], R[(i+1)*3+2], A[i+1]],
+        [L[i*3], L[i*3+1], L[i*3+2], A[i]],
+        [R[(i+1)*3], R[(i+1)*3+1], R[(i+1)*3+2], A[i+1]],
+        [L[(i+1)*3], L[(i+1)*3+1], L[(i+1)*3+2], A[i+1]]
+      ];
+      for (var k = 0; k < 6; k++) {
+        trailPos[vi++] = v[k][0]; trailPos[vi++] = v[k][1]; trailPos[vi++] = v[k][2];
+        trailUv[ui++] = v[k][3]; trailUv[ui++] = 0;
+      }
+      quads++;
+    }
+    if (!quads) return 0;
+    GLX.update(MESH.trail, "aPos", trailPos);
+    GLX.update(MESH.trail, "aUv", trailUv);
+    return quads * 6;
+  }
+
   var spin3 = new Float32Array([1,0,0, 0,1,0, 0,0,1]);
   function ballSpin(b) {
     /* roll about the axis across the direction of travel. sim.js already keeps
@@ -1304,6 +1490,13 @@ var GLR = (function () {
        canvas renderer that ordering is only a cache hint, not correctness. */
     var St = GLX.use(P.stand);
     setCommon(St);
+    GLX.bindTex(1, TEX.boards);
+    gl.uniform1i(St.u.uBoards, 1);
+    gl.uniform1f(St.u.uBoardRep, BOARD_REP);
+    gl.uniform1f(St.u.uSeats, SEATS_ROUND);
+    gl.uniform2f(St.u.uRake, BOWL.base, BOWL.rise);
+    GLX.col3(COL.us, c4);
+    gl.uniform3f(St.u.uSeat, c4[0] * 0.82, c4[1] * 0.82, c4[2] * 0.82);
     if (DBG.stand) {
       gl.uniform3f(St.u.uBase, 0.60, 0.615, 0.635);
       gl.uniform1f(St.u.uRoof, 0);
@@ -1357,6 +1550,23 @@ var GLR = (function () {
     M4.trs(mModel, b.x, b.y, b.z + R, R, R, R);
     emit(B, MESH.ball, false);
 
+    /* the trail, additive and depth-tested but not depth-written, so it can
+       pass behind a post without punching a hole in it */
+    var tn = buildTrail(b);
+    if (tn) {
+      var T = GLX.use(P.trail);
+      gl.uniformMatrix4fv(T.u.uVP, false, mVP);
+      gl.enable(gl.BLEND);
+      gl.blendFunc(gl.ONE, gl.ONE);
+      gl.depthMask(false);
+      gl.disable(gl.CULL_FACE);
+      MESH.trail.count = tn;
+      GLX.draw(MESH.trail);
+      gl.enable(gl.CULL_FACE);
+      gl.depthMask(true);
+      gl.disable(gl.BLEND);
+    }
+
     /* nets last: translucent, so depth-tested but not depth-written */
     var N = GLX.use(P.net);
     setCommon(N);
@@ -1388,10 +1598,33 @@ var GLR = (function () {
                "drawFloodPools", "drawGrain", "drawRings", "drawGoal",
                "drawCornerFlags", "drawBall", "drawGrade"];
 
+  var ORIG = {};        // the canvas passes, kept so they can be put back
+  var usingGL = true;
+
+  /* Swap the two renderers inside a single page load.
+
+     This exists for measurement, not for gameplay. Frame times on this machine
+     move by up to 5 ms run to run for identical code — wider than most of the
+     differences worth measuring — so comparing a GL page load against a canvas
+     page load compares thermal states, not renderers. Interleaving them in one
+     process is the only honest way to do it. */
+  function useCanvas(yes) {
+    usingGL = !yes;
+    for (var i = 0; i < TAKEN.length; i++) {
+      var k = TAKEN[i];
+      if (!ORIG[k]) continue;
+      window[k] = yes ? ORIG[k] : function () {};
+    }
+    return { gl: usingGL };
+  }
+
   function attach() {
     var i;
     for (i = 0; i < TAKEN.length; i++) {
-      if (typeof window[TAKEN[i]] === "function") window[TAKEN[i]] = function () {};
+      if (typeof window[TAKEN[i]] === "function") {
+        ORIG[TAKEN[i]] = window[TAKEN[i]];
+        window[TAKEN[i]] = function () {};
+      }
     }
 
     var initCanvas = window.initRender;
@@ -1406,7 +1639,7 @@ var GLR = (function () {
 
     var render2D = window.renderWorld;
     window.renderWorld = function (world, drag, dt) {
-      frame(world, drag, dt);
+      if (usingGL) frame(world, drag, dt);
       render2D(world, drag, dt);
     };
   }
@@ -1426,6 +1659,7 @@ var GLR = (function () {
     canvas: function () { return glc; },
     progs: P,
     dbg: DBG,
+    useCanvas: useCanvas,
     stats: function () { return { crowd: CROWD_N, rows: BOWL.rows, K: BOWL.K }; },
     frame: frame,
     boot: boot,

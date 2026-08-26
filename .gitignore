@@ -1,0 +1,12 @@
+# Dev captures. Regenerable via js/shot.js and js/shotgl.js, and large:
+# shots/ alone is over 300 MB.
+shots/
+shots-gl/
+shot-*.png
+
+# Generated comparison pages. Base64-embedded images, several MB each.
+before-after.html
+overhaul.html
+
+__pycache__/
+.DS_Store

@@ -1,0 +1,479 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>goal.io UI</title><style>
+  /* =========================================================================
+     goal.io — DESIGN SYSTEM
+     Dark navy ground, electric blue action, gold reward, white type.
+     Built on an 8px spacing scale and a fixed type ramp; nothing here is
+     sized or spaced by eye.
+     ========================================================================= */
+  :root{
+    /* surface: deep navy, cool, never pure black */
+    --n900:#050b16; --n800:#08111f; --n700:#0b1728; --n600:#101f34;
+    --n500:#16293f; --n400:#1e344c; --n300:#2a4359;
+
+    /* action: electric blue */
+    --b600:#0069d9; --b500:#0090ff; --b400:#38b0ff; --b300:#7ccdff;
+
+    /* reward: gold */
+    --g600:#c98a0a; --g500:#f0a91b; --g400:#ffc233; --g300:#ffd970;
+
+    /* ink */
+    --ink:#f2f7fc; --ink2:#c3d2e0; --dim:#8199b0; --dim2:#5a7189;
+    --bad:#ff4763; --good:#25d97a;
+
+    --panel:rgba(255,255,255,.045);
+    --line:rgba(255,255,255,.09);
+    --line2:rgba(255,255,255,.16);
+    --glow:rgba(0,144,255,.34);
+
+    --r-s:10px; --r-m:16px; --r-l:22px; --r-xl:28px;
+    --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px;
+
+    --safeT:env(safe-area-inset-top,0px); --safeB:env(safe-area-inset-bottom,0px);
+
+    /* Condensed sports type, per platform. font-stretch drives the variable
+       system faces where a named condensed family is not installed, which is
+       what stops the identity collapsing to plain San Francisco on iOS. */
+    --face:"Bahnschrift SemiCondensed","Bahnschrift","Roboto Condensed",
+           "SF Compact Display","Helvetica Neue",system-ui,-apple-system,sans-serif;
+  }
+
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;background:var(--n900);
+    color:var(--ink);font-family:var(--face);font-stretch:92%;
+    overscroll-behavior:none;touch-action:none;user-select:none;-webkit-user-select:none;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+    font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+  #game{position:fixed;inset:0;display:block;touch-action:none}
+  .layer{position:fixed;inset:0;display:flex;flex-direction:column;pointer-events:none;z-index:10}
+  .hide{display:none!important}
+
+  /* ============================== HUD ============================== */
+  #hud{padding:calc(var(--safeT) + var(--s3)) var(--s3) 0;display:flex;gap:var(--s2);
+    align-items:stretch}
+
+  #scorebug{pointer-events:auto;display:flex;align-items:stretch;height:42px;
+    background:linear-gradient(180deg,rgba(16,41,63,.94),rgba(8,17,31,.96));
+    border:1px solid var(--line);backdrop-filter:blur(16px);border-radius:var(--r-s);
+    overflow:hidden;box-shadow:0 6px 22px rgba(0,0,0,.45)}
+  #scorebug .bar{width:4px;background:linear-gradient(180deg,var(--b400),var(--b600))}
+  #scorebug .side{display:flex;align-items:center;padding:0 10px;font-size:13px;
+    font-weight:800;letter-spacing:.08em}
+  #scorebug .sc{display:flex;align-items:center;padding:0 11px;font-size:17px;font-weight:800;
+    background:rgba(255,255,255,.055);border-left:1px solid var(--line);
+    border-right:1px solid var(--line);perspective:220px}
+  #scorebug .min{display:flex;align-items:center;padding:0 10px;font-size:10.5px;
+    font-weight:800;letter-spacing:.14em;color:var(--g400)}
+  #lvlTag{pointer-events:auto;display:flex;flex-direction:column;justify-content:center;
+    padding:0 11px;height:42px;background:rgba(11,23,40,.92);border:1px solid var(--line);
+    backdrop-filter:blur(16px);border-radius:var(--r-s);box-shadow:0 6px 22px rgba(0,0,0,.4)}
+  #lvlTag .k{font-size:7.5px;letter-spacing:.24em;color:var(--dim2);font-weight:800;line-height:1}
+  #lvlTag .v{font-size:16px;font-weight:800;line-height:1.15;color:var(--b400)}
+  #btnMenu{pointer-events:auto;margin-left:auto;width:42px;height:42px;display:grid;
+    place-items:center;background:rgba(11,23,40,.92);border:1px solid var(--line);
+    backdrop-filter:blur(16px);font-size:15px;color:var(--ink);border-radius:var(--r-s);
+    box-shadow:0 6px 22px rgba(0,0,0,.4)}
+
+  #objRow{position:absolute;top:calc(var(--safeT) + 64px);left:var(--s3);right:var(--s3);
+    display:flex;align-items:center;gap:var(--s2)}
+  #objRow .accent{width:3px;height:24px;border-radius:2px;flex:none;
+    background:linear-gradient(180deg,var(--b400),var(--b600))}
+  #objective{font-size:11px;letter-spacing:.11em;text-transform:uppercase;font-weight:800;
+    color:var(--ink2);text-shadow:0 1px 10px rgba(0,0,0,.8)}
+  #touchRow{position:absolute;top:calc(var(--safeT) + 92px);left:calc(var(--s3) + 6px);
+    display:flex;align-items:center;gap:var(--s2)}
+  #touchRow .k{font-size:8px;letter-spacing:.22em;color:var(--dim2);font-weight:800}
+  #moveDots{display:flex;gap:5px}
+  .dot{width:18px;height:4px;border-radius:2px;
+    background:linear-gradient(90deg,var(--b400),var(--b500));box-shadow:0 0 12px var(--glow)}
+  .dot.used{background:#1b2c40;box-shadow:none}
+
+  /* ====================== bottom controls ====================== */
+  #controls{margin-top:auto;padding:0 var(--s3) calc(var(--safeB) + var(--s4));display:flex;
+    align-items:flex-end;justify-content:space-between;gap:var(--s3)}
+  #modeWrap{pointer-events:auto;display:flex;flex-direction:column;gap:var(--s1)}
+  .mode{display:flex;align-items:center;gap:10px;height:40px;padding:0 14px 0 10px;
+    min-width:138px;background:rgba(11,23,40,.90);border:1px solid var(--line);
+    backdrop-filter:blur(16px);font-size:10.5px;font-weight:800;letter-spacing:.15em;
+    color:var(--dim);border-radius:var(--r-s);box-shadow:0 4px 16px rgba(0,0,0,.35)}
+  .mode .k{width:22px;height:22px;display:grid;place-items:center;font-size:11px;
+    background:rgba(255,255,255,.06);color:var(--dim2);border-radius:6px}
+  .mode.on{color:#04121f;border-color:transparent;
+    background:linear-gradient(100deg,var(--b400),var(--b600));
+    box-shadow:0 6px 24px var(--glow)}
+  .mode.on .k{background:rgba(0,0,0,.22);color:#04121f}
+  #rightBtns{pointer-events:auto;display:flex;flex-direction:column;gap:var(--s2);
+    align-items:flex-end}
+  .rbtn{position:relative;width:48px;height:48px;display:grid;place-items:center;
+    font-size:18px;background:rgba(11,23,40,.90);border:1px solid var(--line);
+    backdrop-filter:blur(16px);color:var(--ink);border-radius:14px;
+    box-shadow:0 6px 22px rgba(0,0,0,.4)}
+  .rbtn.off{opacity:.30}
+  .badge{position:absolute;top:-5px;right:-5px;background:var(--g400);color:#241700;
+    font-size:9.5px;font-weight:800;min-width:18px;height:18px;display:grid;
+    place-items:center;padding:0 4px;line-height:1;border-radius:9px;
+    box-shadow:0 2px 8px rgba(0,0,0,.5)}
+  #hint{position:absolute;left:0;right:0;bottom:calc(var(--safeB) + 116px);text-align:center;
+    font-size:11.5px;color:rgba(242,247,252,.66);letter-spacing:.04em;font-weight:600;
+    transition:opacity .3s;padding:0 28px;line-height:1.55;
+    text-shadow:0 1px 12px rgba(0,0,0,.9)}
+
+  /* ========================== overlays ========================== */
+  /* A centre-circle arc and two faint pitch bands sit in the backdrop. It is
+     what stops a dark gradient reading as a generic app background. */
+  #overlay{position:fixed;inset:0;z-index:30;display:flex;flex-direction:column;
+    background:
+      radial-gradient(120% 62% at 50% -12%,rgba(0,144,255,.16),transparent 62%),
+      radial-gradient(90% 50% at 50% 106%,rgba(255,194,51,.075),transparent 60%),
+      linear-gradient(180deg,var(--n800) 0%,var(--n900) 58%);
+    padding:calc(var(--safeT) + var(--s4)) var(--s4) calc(var(--safeB) + var(--s4));
+    overflow-y:auto;-webkit-overflow-scrolling:touch}
+  #overlay::before{content:"";position:absolute;left:50%;top:-16%;width:132vw;height:132vw;
+    transform:translateX(-50%);border-radius:50%;pointer-events:none;
+    border:1px solid rgba(255,255,255,.035)}
+  #overlay::after{content:"";position:absolute;inset:0;pointer-events:none;opacity:.55;
+    background-image:
+      linear-gradient(180deg,transparent 0 34%,rgba(255,255,255,.022) 34% 34.2%,transparent 34.2%),
+      linear-gradient(180deg,transparent 0 71%,rgba(255,255,255,.018) 71% 71.2%,transparent 71.2%)}
+  #ovContent{position:relative;display:flex;flex-direction:column;min-height:100%}
+  .grow{flex:1;min-height:var(--s2)}
+
+  /* ---- brand ---- */
+  .brandRow{display:flex;align-items:flex-end;gap:10px}
+  .brand{font-size:46px;font-weight:800;letter-spacing:-.04em;line-height:.9;
+    background:linear-gradient(94deg,#ffffff 14%,var(--b300) 54%,var(--b500) 96%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .brandSlash{width:6px;height:40px;border-radius:2px;margin-bottom:5px;
+    background:linear-gradient(180deg,var(--g400),var(--b500));transform:skewX(-14deg)}
+  .kicker{font-size:9px;letter-spacing:.32em;color:var(--dim2);font-weight:800;
+    margin-top:var(--s2);text-transform:uppercase}
+
+  /* ---- one card treatment, used everywhere ---- */
+  .panel,.tile,.lvl,#resCard{
+    background:linear-gradient(180deg,rgba(30,52,76,.52),rgba(11,23,40,.72));
+    border:1px solid var(--line);border-radius:var(--r-m);
+    box-shadow:0 10px 30px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.07)}
+  .panel{padding:var(--s4);margin-top:var(--s3);position:relative;backdrop-filter:blur(14px)}
+  .panel.acc{border-left:3px solid var(--b500)}
+  .panel.gold{border-left:3px solid var(--g400)}
+  .panel .job{font-size:15px;font-weight:800;line-height:1.36;color:var(--ink);
+    letter-spacing:-.005em}
+  .panel h3{margin:0 0 10px;font-size:9px;letter-spacing:.24em;color:var(--b400);
+    text-transform:uppercase;font-weight:800}
+  .panel.gold h3{color:var(--g400)}
+  .lede{color:var(--ink2);font-size:13.5px;line-height:1.65;margin:var(--s4) 0 0}
+
+  /* ---- buttons ---- */
+  .btn{position:relative;display:flex;align-items:center;justify-content:space-between;
+    width:100%;border:0;min-height:56px;padding:0 var(--s4);margin-top:var(--s3);
+    font-family:inherit;font-size:14px;font-weight:800;letter-spacing:.13em;
+    text-transform:uppercase;border-radius:var(--r-m);overflow:hidden;isolation:isolate;
+    background:linear-gradient(180deg,var(--b400),var(--b600));color:#02121f;
+    box-shadow:0 10px 26px rgba(0,105,217,.34),inset 0 2px 0 rgba(255,255,255,.16)}
+  .btn::after{content:"";width:9px;height:9px;flex:none;
+    border-right:2.4px solid rgba(0,0,0,.42);border-top:2.4px solid rgba(0,0,0,.42);
+    transform:rotate(45deg);margin-left:var(--s3)}
+  .btn::before{content:"";position:absolute;inset:0;z-index:-1;
+    background:linear-gradient(180deg,rgba(255,255,255,.26),rgba(255,255,255,0) 52%),
+               linear-gradient(0deg,rgba(0,0,0,.18),rgba(0,0,0,0) 42%)}
+  .btn.gold{background:linear-gradient(180deg,var(--g400),var(--g600));color:#241700;
+    box-shadow:0 10px 26px rgba(201,138,10,.34),inset 0 2px 0 rgba(255,255,255,.20)}
+  .btn.ghost{background:rgba(255,255,255,.055);color:var(--ink);
+    border:1px solid var(--line2);box-shadow:none}
+  .btn.ghost::after{border-color:rgba(242,247,252,.42)}
+  .btn.ghost::before{display:none}
+  .btn.danger{background:linear-gradient(180deg,#ff5f76,#c81f38);color:#fff;
+    box-shadow:0 10px 26px rgba(200,31,56,.32),inset 0 2px 0 rgba(255,255,255,.16)}
+
+  /* ---- progress ---- */
+  .prog{height:6px;border-radius:3px;background:rgba(255,255,255,.07);overflow:hidden;
+    margin-top:var(--s2)}
+  .prog i{display:block;height:100%;border-radius:3px;
+    background:linear-gradient(90deg,var(--b500),var(--b300));box-shadow:0 0 14px var(--glow)}
+  .prog.gold i{background:linear-gradient(90deg,var(--g500),var(--g300));
+    box-shadow:0 0 14px rgba(255,194,51,.36)}
+  .progRow{display:flex;justify-content:space-between;align-items:baseline;font-size:9px;
+    letter-spacing:.20em;color:var(--dim2);font-weight:800;margin-top:var(--s3);
+    text-transform:uppercase}
+  .progRow b{color:var(--ink);font-size:13px;letter-spacing:-.01em}
+
+  /* ---- stat tiles ---- */
+  .tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2);margin-top:var(--s3)}
+  .tile{padding:var(--s3) 11px}
+  .tile .v{font-size:21px;font-weight:800;line-height:1;color:var(--ink);letter-spacing:-.02em}
+  .tile .k{font-size:7.5px;letter-spacing:.20em;color:var(--dim2);font-weight:800;
+    margin-top:6px;text-transform:uppercase}
+  .tile.hl{border-color:rgba(0,144,255,.36);
+    background:linear-gradient(180deg,rgba(0,144,255,.16),rgba(11,23,40,.72))}
+  .tile.hl .v{color:var(--b300)}
+  .tile.gold{border-color:rgba(255,194,51,.34);
+    background:linear-gradient(180deg,rgba(255,194,51,.14),rgba(11,23,40,.72))}
+  .tile.gold .v{color:var(--g300)}
+
+  /* ===================== pre-match card ===================== */
+  .compBar{display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s4)}
+  .compBar .tag{background:linear-gradient(100deg,var(--b400),var(--b600));color:#02121f;
+    font-size:9px;font-weight:800;letter-spacing:.18em;padding:6px 11px;border-radius:7px;
+    text-transform:uppercase;box-shadow:0 4px 16px var(--glow)}
+  .compBar .no{font-size:9px;letter-spacing:.22em;color:var(--dim2);font-weight:800;
+    margin-left:auto}
+  .fixture{display:flex;align-items:center;gap:var(--s3);padding:var(--s4) 0 var(--s1)}
+  .fixture .club{flex:1;font-size:15px;font-weight:800;letter-spacing:-.01em;line-height:1.22}
+  .fixture .club.away{text-align:right;color:var(--dim)}
+  .fixture .sc{font-size:27px;font-weight:800;letter-spacing:-.02em;padding:7px 14px;
+    white-space:nowrap;border-radius:var(--r-s);
+    background:linear-gradient(180deg,rgba(30,52,76,.7),rgba(11,23,40,.85));
+    border:1px solid var(--line2);box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+  /* a real shield, not a skewed square */
+  .crest{width:40px;height:44px;flex:none;display:grid;place-items:center;font-size:12.5px;
+    font-weight:800;letter-spacing:.02em;
+    background:linear-gradient(180deg,rgba(30,52,76,.85),rgba(11,23,40,.95));
+    border:1px solid var(--line2);
+    clip-path:polygon(0 0,100% 0,100% 62%,50% 100%,0 62%)}
+  .minRow{display:flex;align-items:center;gap:var(--s2);margin-top:6px}
+  .minRow .m{font-size:10px;letter-spacing:.18em;color:var(--g400);font-weight:800}
+  .minRow .n{font-size:10px;letter-spacing:.18em;color:var(--dim2);font-weight:800}
+  .story{font-size:14.5px;line-height:1.68;color:var(--ink2);margin:var(--s4) 0 0;font-weight:500}
+  .brief{list-style:none;margin:0;padding:0}
+  .brief li{display:flex;gap:11px;align-items:flex-start;font-size:12.5px;color:var(--ink2);
+    line-height:1.55;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+  .brief li:last-child{border-bottom:0}
+  .brief li b{color:var(--ink)}
+  .brief .i{color:var(--b400);font-weight:800;font-size:10px;letter-spacing:.08em;
+    min-width:22px;padding-top:2px}
+
+  /* ===================== match select ===================== */
+  .seasonBar{display:flex;align-items:center;gap:var(--s3);margin:var(--s5) 0 var(--s3);
+    position:relative}
+  .seasonBar .num{font-size:38px;font-weight:800;line-height:.78;
+    color:rgba(255,255,255,.075);letter-spacing:-.05em}
+  .seasonBar .txt{flex:1}
+  .seasonBar .s{font-size:13.5px;font-weight:800;letter-spacing:-.005em}
+  .seasonBar .c{font-size:8.5px;letter-spacing:.20em;color:var(--dim2);font-weight:800;
+    margin-top:3px;text-transform:uppercase}
+  .seasonBar .st{font-size:11.5px;color:var(--g400);font-weight:800;letter-spacing:.04em}
+
+  .levelGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));
+    gap:var(--s2)}
+  .lvl{position:relative;aspect-ratio:.92;padding:10px;overflow:hidden;display:flex;
+    flex-direction:column;align-items:flex-start;justify-content:flex-end;gap:4px;
+    color:var(--ink);font-family:inherit;text-align:left}
+  .lvl .n{position:absolute;top:7px;right:9px;font-size:25px;font-weight:800;
+    color:rgba(255,255,255,.13);letter-spacing:-.04em;line-height:1}
+  .lvl .t{font-size:9px;letter-spacing:.09em;text-transform:uppercase;font-weight:800;
+    line-height:1.3;color:var(--ink2)}
+  .lvl .st{font-size:9.5px;letter-spacing:1.6px;color:var(--g400);height:12px}
+  .lvl .edge{position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--n300)}
+  /* difficulty band, top-left: three pips, red when it is a step up */
+  .lvl .diff{position:absolute;top:9px;left:10px;display:flex;gap:3px}
+  .lvl .diff i{width:4px;height:4px;border-radius:1px;background:rgba(255,255,255,.16)}
+  .lvl .diff i.on{background:var(--b400);box-shadow:0 0 6px var(--glow)}
+  .lvl .diff i.hot{background:var(--bad);box-shadow:0 0 6px rgba(255,71,99,.6)}
+  .lvl.locked{opacity:.30}
+  .lvl.done{border-color:rgba(255,194,51,.30);
+    background:linear-gradient(180deg,rgba(255,194,51,.10),rgba(11,23,40,.74))}
+  .lvl.done .n{color:rgba(255,194,51,.26)}
+  .lvl.done .edge{background:linear-gradient(180deg,var(--g400),var(--g600))}
+  .lvl.next{border-color:rgba(0,144,255,.44);
+    background:linear-gradient(180deg,rgba(0,144,255,.16),rgba(11,23,40,.74))}
+  .lvl.next .edge{background:linear-gradient(180deg,var(--b300),var(--b600))}
+
+  /* ======================== result ======================== */
+  #result{position:fixed;inset:0;z-index:25;display:flex;flex-direction:column;
+    justify-content:flex-end;padding:0 var(--s4) calc(var(--safeB) + var(--s4));
+    pointer-events:auto;
+    background:linear-gradient(180deg,rgba(3,8,16,0) 26%,rgba(3,8,16,.88) 66%)}
+  #resCard{width:100%;max-width:430px;margin:0 auto;
+    padding:var(--s5) var(--s4) var(--s4);backdrop-filter:blur(18px)}
+  #resHead{display:flex;align-items:center;gap:var(--s3)}
+  #resTitle{font-size:34px;font-weight:800;letter-spacing:-.032em;margin:0;line-height:.96}
+  #stars{font-size:20px;letter-spacing:3px;margin-left:auto}
+  .star-off{color:#1b2c40}
+  .star-on{color:var(--g400);
+    text-shadow:0 0 16px rgba(255,194,51,.55),0 0 44px rgba(255,194,51,.28)}
+  #resSub{color:var(--ink2);font-size:12.5px;margin:10px 0 0;line-height:1.58}
+  #resStats{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--s2);margin-top:var(--s4)}
+
+  /* ==================== full-frame light ==================== */
+  #flash{position:fixed;inset:0;z-index:20;pointer-events:none;opacity:0;
+    background:
+      radial-gradient(38% 26% at 50% 44%,rgba(255,255,255,.92),transparent 72%),
+      radial-gradient(78% 56% at 50% 46%,rgba(120,205,255,.42),transparent 74%),
+      linear-gradient(180deg,rgba(255,255,255,.10),transparent 40%)}
+  #vignette{position:fixed;inset:0;z-index:19;pointer-events:none;opacity:0;
+    background:radial-gradient(120% 88% at 50% 48%,transparent 42%,rgba(0,0,0,.86) 100%)}
+  #bigWord{position:fixed;inset:0;z-index:22;display:grid;place-items:center;
+    pointer-events:none;font-size:15vw;font-weight:800;letter-spacing:-.05em;opacity:0;
+    color:#fff;text-shadow:0 2px 0 rgba(0,0,0,.4),0 0 46px rgba(0,144,255,.5),
+      0 0 120px rgba(0,0,0,.75)}
+
+  /* ================= kinetic goal typography ================= */
+  #kinetic{position:fixed;inset:0;z-index:23;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;pointer-events:none;gap:2px}
+  #kinetic .kwrap{display:flex;align-items:baseline;
+    filter:drop-shadow(0 6px 0 rgba(0,0,0,.34)) drop-shadow(0 0 64px rgba(255,194,51,.5))}
+  #kinetic .kl{display:block;font-size:22vw;line-height:.86;font-weight:800;
+    letter-spacing:-.058em;
+    background:linear-gradient(176deg,#ffffff 6%,var(--g300) 40%,var(--g400) 66%,var(--g600) 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    transform:translateY(48%) rotate(6deg) scale(.72);opacity:0;
+    transition:transform .62s cubic-bezier(.14,1.34,.28,1),opacity .26s ease}
+  #kinetic.in .kl{transform:translateY(0) rotate(0) scale(1);opacity:1}
+  #kinetic .ksub{font-size:10.5px;font-weight:800;letter-spacing:.42em;
+    text-transform:uppercase;color:rgba(242,247,252,.76);transform:translateY(14px);opacity:0;
+    transition:transform .5s cubic-bezier(.16,1,.3,1) .30s,opacity .5s ease .30s;
+    text-shadow:0 0 24px rgba(0,0,0,.9)}
+  #kinetic.in .ksub{transform:translateY(0);opacity:1}
+  #kinetic.out{transition:opacity .5s ease,transform .6s ease;opacity:0;transform:scale(1.10)}
+
+  /* ===================== kickoff card ===================== */
+  #intro{position:fixed;left:0;right:0;top:32%;z-index:21;pointer-events:none;
+    display:flex;flex-direction:column;align-items:center;gap:var(--s2);
+    opacity:0;transform:translateY(16px)}
+  #intro.in{opacity:1;transform:translateY(0);
+    transition:opacity .42s ease,transform .62s cubic-bezier(.16,1,.3,1)}
+  #intro.out{opacity:0;transform:translateY(-14px) scale(.98);
+    transition:opacity .46s ease,transform .5s ease}
+  #intro .icomp{font-size:9.5px;font-weight:800;letter-spacing:.38em;text-transform:uppercase;
+    color:var(--g400);text-shadow:0 0 22px rgba(255,194,51,.45)}
+  #intro .ifix{display:flex;align-items:center;gap:var(--s3);font-size:39px;font-weight:800;
+    letter-spacing:-.03em;text-shadow:0 3px 0 rgba(0,0,0,.42),0 0 50px rgba(0,0,0,.88)}
+  #intro .ifix .isc{font-size:26px;padding:3px 13px;border-radius:var(--r-s);
+    background:rgba(8,17,31,.76);border:1px solid var(--line2);backdrop-filter:blur(10px)}
+  #intro .ifix .ia{color:var(--dim)}
+  #intro .imin{font-size:10px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;
+    color:rgba(242,247,252,.68);text-shadow:0 0 18px rgba(0,0,0,.9)}
+  #intro .ibar{width:136px;height:2px;border-radius:1px;background:rgba(255,255,255,.14);
+    overflow:hidden}
+  #intro .ibar i{display:block;height:100%;width:0;
+    background:linear-gradient(90deg,var(--g400),var(--b400))}
+  #intro.in .ibar i{width:100%;transition:width 1.35s linear}
+
+  /* ============== scorebug reacting to a goal ============== */
+  #scorebug.hit{animation:bugHit .62s cubic-bezier(.16,1,.3,1)}
+  @keyframes bugHit{0%{transform:scale(1)}
+    18%{transform:scale(1.13);filter:brightness(1.85)}
+    100%{transform:scale(1);filter:brightness(1)}}
+  #hScore.flip{animation:digitFlip .42s cubic-bezier(.3,1.1,.3,1)}
+  @keyframes digitFlip{0%{transform:rotateX(0);opacity:1}
+    48%{transform:rotateX(-90deg);opacity:.25}
+    49%{transform:rotateX(90deg);opacity:.25}
+    100%{transform:rotateX(0);opacity:1}}
+
+  /* ========================= toast ========================= */
+  #toast{position:fixed;left:50%;transform:translateX(-50%);
+    bottom:calc(var(--safeB) + 182px);z-index:24;
+    background:linear-gradient(180deg,rgba(30,52,76,.96),rgba(8,17,31,.97));
+    border:1px solid var(--line2);padding:10px 17px;font-size:11.5px;font-weight:800;
+    opacity:0;transition:opacity .25s;pointer-events:none;letter-spacing:.08em;
+    text-transform:uppercase;border-radius:var(--r-s);box-shadow:0 10px 30px rgba(0,0,0,.55)}
+
+  /* ======================= boot screen ======================= */
+  #boot{position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    background:
+      radial-gradient(84% 50% at 50% 6%,rgba(0,144,255,.16),transparent 62%),
+      radial-gradient(70% 45% at 50% 98%,rgba(255,194,51,.10),transparent 60%),
+      linear-gradient(180deg,var(--n800),var(--n900) 62%);
+    transition:opacity .55s ease,transform .55s ease}
+  #boot.gone{opacity:0;transform:scale(1.03);pointer-events:none}
+  #boot .bwrap{display:flex;flex-direction:column;align-items:center;gap:var(--s4)}
+  #boot .bmark{display:flex;align-items:flex-end;gap:10px}
+  #boot .bslash{width:7px;height:44px;border-radius:2px;
+    background:linear-gradient(180deg,var(--g400),var(--b500));
+    transform:skewX(-14deg);margin-bottom:6px;
+    animation:bootSlash .7s cubic-bezier(.16,1,.3,1) both}
+  #boot .btext{font-size:50px;font-weight:800;letter-spacing:-.042em;line-height:.9;
+    background:linear-gradient(94deg,#ffffff 14%,var(--b300) 56%,var(--b500));
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    animation:bootMark .8s cubic-bezier(.16,1,.3,1) .06s both}
+  @keyframes bootSlash{from{opacity:0;transform:skewX(-14deg) translateY(18px) scaleY(.4)}
+    to{opacity:1;transform:skewX(-14deg) translateY(0) scaleY(1)}}
+  @keyframes bootMark{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+  #boot .bkick{font-size:9px;letter-spacing:.42em;color:var(--dim);font-weight:800;
+    animation:bootMark .7s ease .22s both}
+  #boot .bbar{width:180px;height:3px;border-radius:2px;background:rgba(255,255,255,.10);
+    overflow:hidden;animation:bootMark .6s ease .30s both}
+  #boot .bbar i{display:block;height:100%;width:0;border-radius:2px;
+    background:linear-gradient(90deg,var(--b500),var(--b300));box-shadow:0 0 12px var(--glow);
+    transition:width .28s cubic-bezier(.3,.8,.3,1)}
+  #boot .bstat{font-size:8.5px;letter-spacing:.30em;color:var(--dim2);font-weight:800;
+    animation:bootMark .6s ease .36s both}
+  #boot .bfoot{position:absolute;bottom:calc(var(--safeB) + 24px);font-size:8px;
+    letter-spacing:.34em;color:#33465c;font-weight:800;
+    animation:bootMark .8s ease .5s both}
+
+  /* ======================== toggle control ======================== */
+  .tgl{position:relative;width:52px;height:30px;flex:none;border-radius:15px;
+    background:rgba(255,255,255,.08);border:1px solid var(--line2);
+    transition:background .24s ease,border-color .24s ease}
+  .tgl i{position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:11px;
+    background:var(--dim);display:block;
+    transition:transform .28s cubic-bezier(.16,1.3,.3,1),background .24s ease}
+  .tgl.on{background:linear-gradient(100deg,var(--b500),var(--b600));
+    border-color:transparent;box-shadow:0 4px 16px var(--glow)}
+  .tgl.on i{transform:translateX(22px);background:#fff}
+  .tgl:active{filter:brightness(1.15)}
+
+  /* =========================================================================
+     MOTION
+       .swap   screen fade + lift on change
+       .stg    children arrive 42 ms apart
+       :active a spring on press, on everything tappable
+     42 ms is the interval that reads as "assembled": below ~30 the eye takes
+     it as one block, above ~60 it reads as slow.
+     ========================================================================= */
+  #ovContent.swapOut{opacity:0;transform:translateY(-10px) scale(.985);
+    transition:opacity .17s ease-in,transform .17s ease-in}
+  #ovContent.swapIn{animation:swapIn .34s cubic-bezier(.16,1,.3,1) both}
+  @keyframes swapIn{from{opacity:0;transform:translateY(14px) scale(.99)}
+    to{opacity:1;transform:none}}
+
+  .stg > *{animation:stgIn .40s cubic-bezier(.16,1,.3,1) both;
+    animation-delay:calc(var(--i,0) * 42ms)}
+  @keyframes stgIn{from{opacity:0;transform:translateY(15px)}to{opacity:1;transform:none}}
+  .levelGrid > *{animation:stgIn .34s cubic-bezier(.16,1,.3,1) both;
+    animation-delay:calc(var(--i,0) * 26ms)}
+
+  @media (prefers-reduced-motion:reduce){
+    .stg > *,#ovContent.swapIn,.levelGrid > *{animation-duration:.01s}
+    #ovContent.swapOut{transition-duration:.01s}
+  }
+
+  /* Spring on press: 60 ms down, 260 ms back. The asymmetry is the whole
+     trick — it reads as a physical key rather than a fade. */
+  .btn,.lvl,.mode,.rbtn,#btnMenu,.tile{
+    transition:transform .26s cubic-bezier(.16,1.4,.3,1),filter .18s ease,
+               box-shadow .24s ease,border-color .24s ease;
+    will-change:transform}
+  .btn:active,.mode:active,.rbtn:active,#btnMenu:active{
+    transform:scale(.96);transition-duration:.06s;filter:brightness(1.14)}
+  .lvl:active{transform:scale(.935);transition-duration:.06s;filter:brightness(1.12)}
+
+  .btn > .sheen{position:absolute;top:0;bottom:0;width:44%;z-index:-1;
+    background:linear-gradient(100deg,transparent,rgba(255,255,255,.38),transparent);
+    transform:translateX(-160%) skewX(-18deg);
+    animation:sheen 4.6s cubic-bezier(.4,0,.2,1) 1.2s infinite}
+  @keyframes sheen{0%{transform:translateX(-160%) skewX(-18deg)}
+    26%{transform:translateX(320%) skewX(-18deg)}
+    100%{transform:translateX(320%) skewX(-18deg)}}
+  .btn.ghost > .sheen{display:none}
+
+  .rip{position:absolute;border-radius:50%;pointer-events:none;z-index:-1;
+    background:radial-gradient(circle,rgba(255,255,255,.5),rgba(255,255,255,0) 68%);
+    transform:translate(-50%,-50%) scale(0);animation:rip .52s ease-out forwards}
+  @keyframes rip{to{transform:translate(-50%,-50%) scale(1);opacity:0}}
+
+  #result.in #resCard{animation:cardIn .46s cubic-bezier(.16,1.05,.3,1) both}
+  @keyframes cardIn{from{opacity:0;transform:translateY(38px) scale(.97)}
+    to{opacity:1;transform:none}}
+  #stars span{display:inline-block;transform:scale(2.4) rotate(-24deg);opacity:0}
+  #stars span.land{animation:starLand .52s cubic-bezier(.16,1.5,.3,1) both}
+  @keyframes starLand{from{transform:scale(2.4) rotate(-24deg);opacity:0}
+    60%{opacity:1}to{transform:scale(1) rotate(0);opacity:1}}
+</style><style>body{overflow:auto;height:auto;background:#03070d;padding:26px 18px 44px}.wrap{display:flex;gap:22px;flex-wrap:wrap;justify-content:center;align-items:flex-start}.frame{width:340px}.flabel{font-size:9px;letter-spacing:.30em;color:#5a7189;font-weight:800;text-transform:uppercase;margin:0 0 9px 3px}.screen{position:relative;width:340px;height:736px;overflow:hidden;border:1px solid rgba(255,255,255,.10);border-radius:30px;box-shadow:0 30px 90px rgba(0,0,0,.7);background:#050b16}.screen #overlay{padding:20px 16px 18px}h1.top{color:#f2f7fc;font-size:15px;letter-spacing:.26em;text-transform:uppercase;text-align:center;font-weight:800;margin:0 0 8px}.sub{text-align:center;color:#5a7189;font-size:11px;letter-spacing:.16em;margin:0 0 30px;text-transform:uppercase;font-weight:800}.note{color:#8199b0;font-size:11.5px;text-align:center;margin:26px auto 0;max-width:860px;line-height:1.8}</style></head><body><h1 class="top">goal.io &middot; interface</h1><p class="sub">navy &middot; electric blue &middot; gold</p><div class="wrap">
+  <div class="frame"><div class="flabel">Boot</div><div class="screen"><div id="boot" style="position:absolute"><div class="bwrap"><div class="bmark"><span class="bslash"></span><span class="btext">goal.io</span></div><div class="bkick">SWIPE FOOTBALL</div><div class="bbar"><i style="width:72%"></i></div><div class="bstat">CROWD</div></div><div class="bfoot">MADE FOR ONE THUMB</div></div></div></div>
+  <div class="frame"><div class="flabel">Main menu</div><div class="screen"><div id="overlay" style="position:absolute;inset:0;overflow:hidden"><div id="ovContent" class="stg"><div class="brandRow" style="--i:0"><div class="brandSlash"></div><div class="brand">goal.io</div></div><div class="kicker" style="--i:1">SWIPE FOOTBALL &middot; 15 MATCHES &middot; 3 SEASONS</div><div class="tiles" style="--i:2"><div class="tile gold"><div class="v">28</div><div class="k">STARS</div></div><div class="tile hl"><div class="v">11</div><div class="k">NEXT UP</div></div><div class="tile"><div class="v">62%</div><div class="k">COMPLETE</div></div></div><div class="panel" style="--i:3"><div class="progRow" style="margin-top:0"><span>CAREER PROGRESS</span><b>28 / 45</b></div><div class="prog gold"><i style="width:62%"></i></div><div class="progRow"><span>THE CHAMPIONSHIP</span><b style="font-size:11px;letter-spacing:.10em">REDBRIDGE CITY</b></div></div><div class="grow"></div><button class="btn" style="--i:4"><span class="sheen"></span>CONTINUE</button><button class="btn ghost" style="--i:5">ALL MATCHES</button><button class="btn ghost" style="--i:6">SETTINGS</button></div></div></div></div>
+  <div class="frame"><div class="flabel">Match select</div><div class="screen"><div id="overlay" style="position:absolute;inset:0;overflow:auto"><div id="ovContent" class="stg"><div class="brandRow" style="--i:0"><div class="brandSlash"></div><div class="brand" style="font-size:30px">MATCHES</div></div><div class="kicker" style="--i:1">28 / 45 STARS COLLECTED</div><div class="prog gold" style="margin-top:12px;--i:2"><i style="width:62%"></i></div><div class="seasonBar" style="--i:3"><div class="num">02</div><div class="txt"><div class="s">THE CHAMPIONSHIP</div><div class="c">REDBRIDGE CITY</div></div><div class="st">12/15 &#9733;</div></div><div class="levelGrid" style="--i:4"><button class="lvl done" style="--i:0"><div class="edge"></div><div class="diff"><i class="on"></i><i class=""></i><i class=""></i></div><div class="n">06</div><div class="st">★★★</div><div class="t">TIGHT ANGLE</div></button><button class="lvl done" style="--i:1"><div class="edge"></div><div class="diff"><i class="on"></i><i class=""></i><i class=""></i></div><div class="n">07</div><div class="st">★★★</div><div class="t">WHIPPED IN</div></button><button class="lvl done" style="--i:2"><div class="edge"></div><div class="diff"><i class="on"></i><i class="on"></i><i class=""></i></div><div class="n">08</div><div class="st">★★</div><div class="t">CROWDED HOUSE</div></button><button class="lvl next" style="--i:3"><div class="edge"></div><div class="diff"><i class="hot"></i><i class="hot"></i><i class="hot"></i></div><div class="n">09</div><div class="st"></div><div class="t">FROM DISTANCE</div></button><button class="lvl locked" style="--i:4"><div class="edge"></div><div class="diff"><i class="hot"></i><i class="hot"></i><i class="hot"></i></div><div class="n">&#128274;</div><div class="st"></div><div class="t">DERBY DAY</div></button><button class="lvl locked" style="--i:5"><div class="edge"></div><div class="diff"><i class="on"></i><i class="on"></i><i class="on"></i></div><div class="n">&#128274;</div><div class="st"></div><div class="t">FIRST NIGHT</div></button></div></div></div></div></div>
+  <div class="frame"><div class="flabel">Pre-match</div><div class="screen"><div id="overlay" style="position:absolute;inset:0;overflow:auto"><div id="ovContent" class="stg"><div class="compBar" style="--i:0"><div class="tag">EUROPEAN CUP FINAL</div><div class="no">MATCH 15 / 15</div></div><div class="fixture" style="--i:1"><div class="crest" style="color:var(--b300)"><span>AT</span></div><div class="club">Atl&eacute;tico Lisboa</div><div class="sc">1&ndash;1</div><div class="club away">Real Atlante</div><div class="crest" style="color:var(--dim)"><span>RE</span></div></div><div class="minRow" style="--i:2"><div class="m">88&rsquo; PLAYED</div><div class="n">&middot; THE FINAL</div></div><div class="story" style="--i:3">Eighty-eight minutes gone. One ball, one chance, and a career that started on Hackney Marsh.</div><div class="panel acc" style="--i:4"><h3>Your job</h3><div class="job">Win the European Cup.</div></div><div class="panel" style="--i:5"><h3>Brief</h3><ul class="brief"><li><span class="i">01</span><span><b>2 touches</b> to score.</span></li><li><span class="i">02</span><span><b>3 rewinds</b> &mdash; take a bad touch back instead of restarting.</span></li><li><span class="i">03</span><span>Third star: <b>bend the finish</b>.</span></li></ul></div><div class="panel gold" style="--i:6"><h3>Step up</h3><div class="job" style="font-size:13px;line-height:1.5">This one is a level harder than anything before it. Expect to use a rewind.</div></div><div style="height:14px"></div><button class="btn gold" style="--i:7"><span class="sheen"></span>KICK OFF</button><button class="btn ghost" style="--i:8">ALL MATCHES</button></div></div></div></div>
+  <div class="frame"><div class="flabel">Settings</div><div class="screen"><div id="overlay" style="position:absolute;inset:0;overflow:auto"><div id="ovContent" class="stg"><div class="brandRow" style="--i:0"><div class="brandSlash"></div><div class="brand" style="font-size:30px">SETTINGS</div></div><div class="kicker" style="--i:1">AUDIO &middot; FEEDBACK &middot; PROGRESS</div><div class="panel" style="margin-top:8px;display:flex;align-items:center;gap:14px;--i:2"><div style="flex:1"><div style="font-size:13.5px;font-weight:800">Crowd &amp; effects</div><div style="font-size:10.5px;color:var(--dim);margin-top:3px">Stadium bed, impacts and the roar.</div></div><div class="tgl on"><i></i></div></div><div class="panel" style="margin-top:8px;display:flex;align-items:center;gap:14px;--i:3"><div style="flex:1"><div style="font-size:13.5px;font-weight:800">Haptics</div><div style="font-size:10.5px;color:var(--dim);margin-top:3px">Vibration on contact, saves and goals.</div></div><div class="tgl"><i></i></div></div><div class="panel" style="--i:4"><h3>Progress</h3><div class="progRow" style="margin-top:0"><span>CAREER</span><b>28 / 45 STARS</b></div><div class="prog gold"><i style="width:62%"></i></div><div style="font-size:11px;color:var(--dim);margin-top:12px;line-height:1.5">Resetting clears every star and re-locks the career. It cannot be undone.</div></div><button class="btn danger" style="--i:5">RESET PROGRESS</button><div class="grow"></div><button class="btn ghost" style="--i:6">BACK</button></div></div></div></div>
+  <div class="frame"><div class="flabel">Result</div><div class="screen"><div style="position:absolute;inset:0;background:radial-gradient(70% 40% at 50% 24%,rgba(255,194,51,.12),transparent 70%)"></div><div style="position:absolute;left:16px;right:16px;bottom:16px"><div id="resCard"><div id="resHead"><h1 id="resTitle" style="color:var(--g400)">GOAL!</h1><div id="stars"><span class="star-on land">★</span><span class="star-on land">★</span><span class="star-on land">★</span></div></div><p id="resSub">Perfect. Nothing left on the table.</p><div id="resStats"><div class="tile gold"><div class="v">2-1</div><div class="k">SCORE</div></div><div class="tile"><div class="v">2 / 2</div><div class="k">TOUCHES</div></div><div class="tile"><div class="v">3</div><div class="k">REWINDS LEFT</div></div></div><button class="btn gold"><span class="sheen"></span>FINISH CAREER</button><button class="btn ghost">PLAY AGAIN</button></div></div></div></div></div><p class="note">Rendered from the game&rsquo;s own stylesheet and markup. One card treatment everywhere: navy glass, hairline border, lit top edge, real drop shadow. Difficulty pips on each match tile come from measured win rates &mdash; red marks the three outliers. Panels stagger in 42&thinsp;ms apart; buttons spring 60&thinsp;ms down and 260&thinsp;ms back.</p></body></html>

@@ -50,6 +50,13 @@ footballers for Unity — a separate deliverable, referenced by
   to be imported to lift each one. Read this before proposing a graphics feature:
   several obvious ones (reflections, skinned characters, textured kits) are
   blocked on assets that do not exist in the project, and the doc says so.
+- **`docs/PLAYERS.md`** — players are a skinned, textured glTF mesh driven by
+  the `anim.js` rig. Read the bind-fixup section before touching `js/skin.gl.js`:
+  the two skeletons disagree about which way an arm bone points at bind, and
+  getting it wrong renders every player in a T-pose.
+- **`docs/CONFIG.md`** — all game data lives in `config/*.json`. Edit those, then
+  `python tools/config_validate.py && python tools/config_build.py`. `js/core.js`
+  still holds the defaults and is never edited.
 - **`docs/WEBGL.md`** — **the WebGL renderer is the default.** `js/gl.js`,
   `js/post.gl.js`, `js/render.gl.js`. It draws the world, the players and a full
   post chain (bloom, depth of field, reprojected motion blur, a highlight

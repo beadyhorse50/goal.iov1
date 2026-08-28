@@ -1818,6 +1818,9 @@ var GLR = (function () {
       { name: "aUv", size: 2, dynamic: true, data: new Float32Array(TRAIL_MAX * 6 * 2) }
     ], null, 0);
 
+    /* after the programs exist, so SKIN can borrow the GLSL chunks */
+    if (typeof SKIN !== "undefined") SKIN.boot(gl);
+
     SHADOW = GLX.depthTarget(SHADOW_SIZE);
     size();
     /* set here rather than in the initRender wrapper so the harness can call
@@ -2688,6 +2691,12 @@ var GLR = (function () {
 
     var J = solveRig(pose, root, R, F, U, p._rig);
 
+    /* The skinned mesh takes the same solved rig. If the models are still
+       loading, or the flag is off, this returns false and the primitive body
+       below draws instead — so there is never a frame with no players. */
+    if (typeof SKIN !== "undefined" && SKIN.enabled &&
+        SKIN.collect(p, J, root, R, F, U)) return;
+
     var LTH = boneLen("knL"), SHN = boneLen("anL");
     var UA = boneLen("elL"), FA2 = boneLen("haL");
     var TOR = boneLen("chest") + boneLen("spine");
@@ -2752,6 +2761,10 @@ var GLR = (function () {
 
   function collectPlayers(world) {
     pl_n = 0; ps_n = 0; ph_n = 0;
+    if (typeof SKIN !== "undefined" && SKIN.enabled) {
+      SKIN.reset();
+      SKIN.setCamera(Cam.px, Cam.py);
+    }
     var all = world.us.concat(world.them);
     for (var i = 0; i < all.length; i++) emitPlayer(all[i], world.ball, world);
     if (pl_n) {
@@ -2770,6 +2783,7 @@ var GLR = (function () {
   }
 
   function drawPlayers(depthOnly) {
+    if (typeof SKIN !== "undefined" && SKIN.enabled) SKIN.draw(depthOnly, mLightVP);
     if (!pl_n && !ps_n) return;
     var L = GLX.use(depthOnly ? P.playerDepth : P.player);
     if (depthOnly) gl.uniformMatrix4fv(L.u.uVP, false, mLightVP);
@@ -2874,6 +2888,12 @@ var GLR = (function () {
     canvas: function () { return glc; },
     progs: P,
     dbg: DBG,
+    /* The shared GLSL. js/skin.gl.js compiles its own programs and has to be
+       lit by the same rig as everything else — a second copy of these chunks
+       would drift, and a player lit differently from the pitch he stands on is
+       the most obvious wrongness a renderer can produce. */
+    glsl: { HEAD: HEAD, COMMON: COMMON, PBR: PBR, SHADOW: SHADOW_CHUNK },
+    bindCommon: function (prg) { setCommon(prg); },
     useCanvas: useCanvas,
     stats: function () {
       return { crowd: CROWD_N, rows: BOWL.rows, K: BOWL.K,

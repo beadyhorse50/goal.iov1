@@ -62,6 +62,11 @@ var GLR = (function () {
 
   var FAR = 400, NEARZ = 0.30, FOVY = 0.9;
 
+  /* ?aa=0 turns FXAA off; it is on by default. */
+  var AA = (function () {
+    try { return !/[?&]aa=0/.test(location.search); } catch (e) { return true; }
+  })();
+
   /* Per-pass switches. The canvas renderer found its black pitch by disabling
      passes one at a time and reading pixels back, after two confident theories
      about the cause were both wrong. Same trick, made permanent. */
@@ -2428,6 +2433,26 @@ var GLR = (function () {
       contrast: 1.12 + C.flood * 0.03,
       vig: [0.20 + (1 - C.light) * 0.14, 0.34],
       grain: 0.010 + (1 - C.light) * 0.010,
+      /* AMBIENT OCCLUSION.
+
+         The graphics audit called this "the cheapest remaining real gain in
+         the project" and it got cheaper still once players became meshes:
+         a jointed solid has no creases to occlude, a skinned body does.
+         0.32 m is about the gap between a boot and the turf.
+
+         Strength is tied to how much of the light is ambient. Under a hard
+         afternoon sun the key light already carves the shape and heavy AO
+         reads as dirt; under floodlights or heavy cloud the probe reaches
+         everywhere and AO is the only thing left doing the grounding. */
+      ao: 0.34 + (1 - C.light) * 0.20 + C.flood * 0.10,
+      aoRadius: 0.32,
+      aoBias: 0.022,
+      aoPower: 1.0,
+      /* FXAA. The renderer has no geometric AA — MSAA is unavailable on the
+         framebuffer the post chain requires — so every silhouette is a hard
+         staircase held together by resolution alone. See docs/WEBGL.md for
+         the measured resolution trade this buys. */
+      fxaa: AA,
       mblur: mblur,
       time: (typeof CROWD_T !== "undefined") ? CROWD_T : 0,
       eye: eye,

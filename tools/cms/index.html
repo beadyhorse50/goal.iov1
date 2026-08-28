@@ -1,0 +1,520 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>goal.io — content</title>
+<style>
+:root{
+  --n900:#050b16; --n800:#08111f; --n700:#0b1728; --n600:#101f34;
+  --n500:#16293f; --n400:#1e344c; --line:rgba(255,255,255,.09);
+  --line2:rgba(255,255,255,.16); --panel:rgba(255,255,255,.045);
+  --ink:#f2f7fc; --dim:#8199b0; --dim2:#5a7189;
+  --b500:#0090ff; --b400:#38b0ff; --g400:#ffc233; --bad:#ff4763; --good:#25d97a;
+  --s2:8px; --s3:12px; --s4:16px; --r-s:10px; --r-m:16px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--n900);color:var(--ink);
+  font:14px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}
+header{display:flex;align-items:center;gap:var(--s4);padding:14px 20px;
+  border-bottom:1px solid var(--line);background:var(--n800);position:sticky;top:0;z-index:5}
+.brand{font-weight:800;letter-spacing:.16em;font-size:15px}
+.brand span{color:var(--b400)}
+.spacer{flex:1}
+button{font:inherit;border-radius:var(--r-s);border:1px solid var(--line2);
+  background:var(--panel);color:var(--ink);padding:8px 14px;cursor:pointer}
+button:hover{border-color:var(--b400)}
+button.primary{background:var(--b500);border-color:var(--b500);font-weight:600}
+button.warn{border-color:var(--g400);color:var(--g400)}
+button:disabled{opacity:.4;cursor:default}
+nav{display:flex;gap:6px;padding:12px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+nav button.on{background:var(--b500);border-color:var(--b500)}
+main{padding:20px;display:grid;grid-template-columns:minmax(0,1fr) 420px;gap:20px;align-items:start}
+@media(max-width:1100px){main{grid-template-columns:1fr}}
+.card{background:var(--n800);border:1px solid var(--line);border-radius:var(--r-m);padding:var(--s4)}
+.card h2{margin:0 0 12px;font-size:12px;letter-spacing:.16em;color:var(--dim);font-weight:700}
+label{display:block;font-size:11px;letter-spacing:.1em;color:var(--dim);margin:10px 0 4px}
+input,select,textarea{width:100%;background:var(--n700);border:1px solid var(--line);
+  color:var(--ink);border-radius:var(--r-s);padding:8px 10px;font:inherit}
+textarea{min-height:80px;resize:vertical;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:var(--s3)}
+.list{max-height:520px;overflow:auto}
+.item{padding:9px 11px;border-radius:var(--r-s);border:1px solid transparent;cursor:pointer}
+.item:hover{background:var(--panel)}
+.item.on{background:var(--panel);border-color:var(--b500)}
+.item b{display:block;font-size:13px}
+.item span{font-size:11px;color:var(--dim)}
+#log{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px;white-space:pre-wrap;
+  color:var(--dim);max-height:180px;overflow:auto;margin:0}
+#log .ok{color:var(--good)} #log .err{color:var(--bad)}
+canvas{width:100%;background:#123a1f;border-radius:var(--r-s);border:1px solid var(--line);
+  touch-action:none;cursor:crosshair;display:block}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--dim);margin-top:10px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.pill{display:inline-block;font-size:10px;letter-spacing:.1em;padding:2px 8px;border-radius:999px;
+  background:var(--panel);border:1px solid var(--line2);color:var(--dim)}
+.dirty{color:var(--g400)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">goal<span>.io</span> &nbsp;CONTENT</div>
+  <span class="pill" id="dirty">saved</span>
+  <div class="spacer"></div>
+  <button id="btnValidate">Validate</button>
+  <button id="btnSave" class="primary">Save</button>
+  <button id="btnBuild" class="warn">Publish</button>
+</header>
+
+<nav id="tabs"></nav>
+
+<main>
+  <div id="editor"></div>
+  <div>
+    <div class="card" style="margin-bottom:16px">
+      <h2>Output</h2>
+      <pre id="log">Ready. Edits are validated before they are written; a config that
+fails validation is reverted, so a bad edit is never left on disk.</pre>
+    </div>
+    <div class="card">
+      <h2>How this works</h2>
+      <p style="font-size:12px;color:var(--dim);margin:0 0 10px">
+        <b style="color:var(--ink)">Save</b> writes <code>config/*.json</code> and runs
+        the validator. If validation fails the previous file is restored.</p>
+      <p style="font-size:12px;color:var(--dim);margin:0 0 10px">
+        <b style="color:var(--ink)">Publish</b> rebuilds
+        <code>config/config.bundle.js</code>, which is what the game actually loads.
+        Reload the game to see the change.</p>
+      <p style="font-size:12px;color:var(--dim);margin:0">
+        Structure is checked here. <b style="color:var(--ink)">Whether a level is
+        winnable is not</b> — that needs the simulation. Run
+        <code>T.balance(400)</code> in the game after changing physics, pitch or
+        level positions.</p>
+    </div>
+  </div>
+</main>
+
+<script>
+var DATA = {}, TAB = "levels", SEL = 0, DIRTY = false;
+var $ = function(id){ return document.getElementById(id); };
+
+function log(msg, cls){
+  var el = $("log");
+  el.innerHTML = '<span class="' + (cls||"") + '">' + String(msg).replace(/</g,"&lt;") + "</span>";
+}
+function setDirty(v){
+  DIRTY = v;
+  $("dirty").textContent = v ? "unsaved changes" : "saved";
+  $("dirty").className = "pill" + (v ? " dirty" : "");
+}
+
+var TABS = [
+  {id:"levels",      label:"Scenarios"},
+  {id:"kits",        label:"Kits"},
+  {id:"progression", label:"Progression"},
+  {id:"conditions",  label:"Weather"},
+  {id:"physics",     label:"Physics"},
+  {id:"raw",         label:"Raw JSON"}
+];
+
+function renderTabs(){
+  $("tabs").innerHTML = TABS.map(function(t){
+    return '<button data-tab="'+t.id+'" class="'+(TAB===t.id?"on":"")+'">'+t.label+"</button>";
+  }).join("");
+  Array.prototype.forEach.call($("tabs").children, function(b){
+    b.onclick = function(){ TAB = b.getAttribute("data-tab"); SEL = 0; renderTabs(); render(); };
+  });
+}
+
+/* ---------------------------------------------------------------- levels */
+/* A scenario is a set of positions on a pitch, and typing "-31.4" into a
+   number box is a poor way to author one. The canvas below is the actual
+   pitch at the actual dimensions from pitch.json, and everything on it
+   drags. */
+function pitchEditor(L){
+  var P = DATA.pitch || {halfW:34, halfL:52.5, boxHalf:20.16, boxDepth:16.5,
+                         sixHalf:9.16, sixDepth:5.5, centreR:9.15, goalHalf:3.66, penSpot:11};
+  var W = 560, PAD = 26;
+  var scale = (W - PAD*2) / (P.halfW*2);
+  var H = Math.round(P.halfL*2*scale + PAD*2);
+
+  function wx(x){ return PAD + (x + P.halfW) * scale; }
+  function wy(y){ return PAD + (y + P.halfL) * scale; }
+  function ux(px){ return (px - PAD)/scale - P.halfW; }
+  function uy(py){ return (py - PAD)/scale - P.halfL; }
+
+  var html = '<canvas id="pitch" width="'+W+'" height="'+H+'"></canvas>' +
+    '<div class="legend">' +
+      '<span><i style="background:#fff"></i>Ball</span>' +
+      '<span><i style="background:#d8324a"></i>Team-mate</span>' +
+      '<span><i style="background:#5566d8"></i>Opponent</span>' +
+      '<span><i style="background:#25b596"></i>Keeper</span>' +
+      '<span style="color:var(--dim2)">drag to move &middot; double-click a player to remove &middot; shift-click the grass to add</span>' +
+    "</div>";
+
+  setTimeout(function(){
+    var c = $("pitch"); if (!c) return;
+    var g = c.getContext("2d");
+
+    function nodes(){
+      var out = [{k:"ball", i:-1, x:L.ball[0], y:L.ball[1], c:"#ffffff", r:6}];
+      out.push({k:"gk", i:-1, x:L.gk[0], y:L.gk[1], c:"#25b596", r:8});
+      (L.mates||[]).forEach(function(m,i){ out.push({k:"mates", i:i, x:m[0], y:m[1], c:"#d8324a", r:8}); });
+      (L.foes||[]).forEach(function(m,i){ out.push({k:"foes", i:i, x:m[0], y:m[1], c:"#5566d8", r:8}); });
+      return out;
+    }
+
+    function draw(){
+      g.fillStyle = "#123a1f"; g.fillRect(0,0,W,H);
+      /* mow bands, so the pitch reads as a pitch and not as a form */
+      for (var b=0;b<20;b++){
+        g.fillStyle = b%2 ? "rgba(255,255,255,.030)" : "rgba(0,0,0,.030)";
+        var y0 = wy(-P.halfL + b*(P.halfL*2/20));
+        g.fillRect(PAD, y0, W-PAD*2, (P.halfL*2/20)*scale);
+      }
+      g.strokeStyle = "rgba(255,255,255,.75)"; g.lineWidth = 1.4;
+      g.strokeRect(wx(-P.halfW), wy(-P.halfL), P.halfW*2*scale, P.halfL*2*scale);
+      g.beginPath(); g.moveTo(wx(-P.halfW), wy(0)); g.lineTo(wx(P.halfW), wy(0)); g.stroke();
+      g.beginPath(); g.arc(wx(0), wy(0), P.centreR*scale, 0, 6.2832); g.stroke();
+      [-1,1].forEach(function(s){
+        var gy = s*P.halfL;
+        g.strokeRect(wx(-P.boxHalf), wy(Math.min(gy, gy - s*P.boxDepth)),
+                     P.boxHalf*2*scale, P.boxDepth*scale);
+        g.strokeRect(wx(-P.sixHalf), wy(Math.min(gy, gy - s*P.sixDepth)),
+                     P.sixHalf*2*scale, P.sixDepth*scale);
+        g.beginPath(); g.arc(wx(0), wy(gy - s*P.penSpot), 2, 0, 6.2832);
+        g.fillStyle="rgba(255,255,255,.85)"; g.fill();
+        /* the goal we attack, marked so up-the-page is unambiguous */
+        g.strokeStyle = s<0 ? "var(--g400)" : "rgba(255,255,255,.75)";
+        g.strokeStyle = s<0 ? "#ffc233" : "rgba(255,255,255,.75)";
+        g.lineWidth = s<0 ? 3 : 1.4;
+        g.beginPath(); g.moveTo(wx(-P.goalHalf), wy(gy)); g.lineTo(wx(P.goalHalf), wy(gy)); g.stroke();
+        g.strokeStyle = "rgba(255,255,255,.75)"; g.lineWidth = 1.4;
+      });
+
+      nodes().forEach(function(n){
+        g.beginPath(); g.arc(wx(n.x), wy(n.y), n.r, 0, 6.2832);
+        g.fillStyle = n.c; g.fill();
+        g.strokeStyle = "rgba(0,0,0,.55)"; g.lineWidth = 1.5; g.stroke();
+      });
+      g.fillStyle = "#ffc233"; g.font = "600 10px system-ui";
+      g.fillText("ATTACKING THIS GOAL", wx(-P.goalHalf), wy(-P.halfL) - 8);
+    }
+
+    var drag = null;
+    function at(ev){
+      var r = c.getBoundingClientRect();
+      var px = (ev.clientX - r.left) * (c.width / r.width);
+      var py = (ev.clientY - r.top) * (c.height / r.height);
+      return {px:px, py:py};
+    }
+    function hit(p){
+      var ns = nodes();
+      for (var i=ns.length-1;i>=0;i--){
+        if (Math.hypot(wx(ns[i].x)-p.px, wy(ns[i].y)-p.py) < ns[i].r + 5) return ns[i];
+      }
+      return null;
+    }
+    function clampX(v){ return Math.max(-P.halfW, Math.min(P.halfW, v)); }
+    function clampY(v){ return Math.max(-P.halfL, Math.min(P.halfL, v)); }
+
+    c.onpointerdown = function(ev){
+      var p = at(ev), n = hit(p);
+      if (ev.shiftKey && !n){
+        /* shift adds an opponent where you click — the commonest edit when
+           building a scenario is "put a defender there" */
+        L.foes = L.foes || [];
+        L.foes.push([+clampX(ux(p.px)).toFixed(1), +clampY(uy(p.py)).toFixed(1)]);
+        setDirty(true); draw(); renderSideForm(L); return;
+      }
+      if (n){ drag = n; c.setPointerCapture(ev.pointerId); }
+    };
+    c.onpointermove = function(ev){
+      if (!drag) return;
+      var p = at(ev);
+      var x = +clampX(ux(p.px)).toFixed(1), y = +clampY(uy(p.py)).toFixed(1);
+      if (drag.k === "ball") L.ball = [x,y];
+      else if (drag.k === "gk") L.gk = [x,y];
+      else {
+        var arr = L[drag.k];
+        arr[drag.i] = arr[drag.i].length > 2 ? [x,y,arr[drag.i][2]] : [x,y];
+      }
+      setDirty(true); draw();
+    };
+    c.onpointerup = function(){ drag = null; renderSideForm(L); };
+    c.ondblclick = function(ev){
+      var n = hit(at(ev));
+      if (n && (n.k==="mates" || n.k==="foes")){
+        L[n.k].splice(n.i,1); setDirty(true); draw(); renderSideForm(L);
+      }
+    };
+    draw();
+  }, 0);
+
+  return html;
+}
+
+function renderSideForm(L){
+  var el = $("sideForm"); if (!el) return;
+  el.innerHTML =
+    '<label>Ball</label><input value="'+L.ball.join(", ")+'" disabled>' +
+    '<label>Keeper</label><input value="'+L.gk.join(", ")+'" disabled>' +
+    '<label>Team-mates ('+((L.mates||[]).length)+')</label>' +
+      '<textarea disabled>'+JSON.stringify(L.mates||[])+'</textarea>' +
+    '<label>Opponents ('+((L.foes||[]).length)+')</label>' +
+      '<textarea disabled>'+JSON.stringify(L.foes||[])+'</textarea>';
+}
+
+function levelsTab(){
+  var lv = DATA.levels && DATA.levels.levels ? DATA.levels.levels : [];
+  if (!lv.length) return '<div class="card">No levels loaded.</div>';
+  var L = lv[Math.min(SEL, lv.length-1)];
+
+  var list = lv.map(function(x,i){
+    return '<div class="item '+(i===SEL?"on":"")+'" data-i="'+i+'">' +
+      "<b>"+x.id+". "+x.name+"</b><span>S"+x.season+" &middot; "+x.opponent+
+      " &middot; "+x.touches+" touch"+(x.touches>1?"es":"")+"</span></div>";
+  }).join("");
+
+  var html =
+    '<div class="card" style="margin-bottom:16px">' +
+      '<h2>Scenario '+L.id+'</h2>' +
+      '<div class="row">' +
+        '<div><label>Name</label><input id="f_name" value="'+esc(L.name)+'"></div>' +
+        '<div><label>Opponent</label><input id="f_opp" value="'+esc(L.opponent)+'"></div>' +
+      "</div>" +
+      '<div class="row3">' +
+        '<div><label>Season</label><input id="f_season" type="number" min="1" value="'+L.season+'"></div>' +
+        '<div><label>Touches</label><input id="f_touches" type="number" min="1" value="'+L.touches+'"></div>' +
+        '<div><label>Par</label><input id="f_par" type="number" min="1" value="'+L.par+'"></div>' +
+      "</div>" +
+      '<div class="row">' +
+        '<div><label>Bonus (3rd star)</label><select id="f_bonus">' +
+          ["curve","chip","outside","clean"].map(function(b){
+            return '<option value="'+b+'"'+(L.bonus===b?" selected":"")+">"+b+"</option>"; }).join("") +
+        "</select></div>" +
+        '<div><label>Minute</label><input id="f_min" type="number" value="'+(L.minute||0)+'"></div>' +
+      "</div>" +
+      '<label>Objective</label><input id="f_obj" value="'+esc(L.obj||"")+'">' +
+      '<label>Story</label><textarea id="f_story">'+esc(L.story||"")+"</textarea>" +
+    "</div>" +
+    '<div class="card"><h2>Positions &mdash; metres from the centre spot</h2>' +
+      pitchEditor(L) +
+      '<div id="sideForm" style="margin-top:12px"></div>' +
+    "</div>";
+
+  setTimeout(function(){
+    renderSideForm(L);
+    bind("f_name",  function(v){ L.name = v.toUpperCase(); });
+    bind("f_opp",   function(v){ L.opponent = v.toUpperCase(); });
+    bind("f_season",function(v){ L.season = +v; });
+    bind("f_touches",function(v){ L.touches = +v; });
+    bind("f_par",   function(v){ L.par = +v; });
+    bind("f_bonus", function(v){ L.bonus = v; });
+    bind("f_min",   function(v){ L.minute = +v; });
+    bind("f_obj",   function(v){ L.obj = v; });
+    bind("f_story", function(v){ L.story = v; });
+  }, 0);
+
+  return {main: html, side: '<div class="card"><h2>Scenarios</h2><div class="list">'+list+"</div></div>",
+          onList: function(i){ SEL = i; render(); }};
+}
+
+/* ------------------------------------------------------------ simple tabs */
+function esc(s){ return String(s==null?"":s).replace(/"/g,"&quot;").replace(/</g,"&lt;"); }
+function bind(id, fn){
+  var el = $(id); if (!el) return;
+  el.oninput = function(){ fn(el.value); setDirty(true); };
+  el.onchange = function(){ fn(el.value); setDirty(true); };
+}
+
+function kitsTab(){
+  var K = DATA.kits && DATA.kits.teams ? DATA.kits.teams : {};
+  var rows = "";
+  Object.keys(K).forEach(function(team){
+    var t = K[team];
+    var specs = [];
+    if (t.bySeason) Object.keys(t.bySeason).forEach(function(s){ specs.push(["season "+s, t.bySeason[s]]); });
+    if (t.default) specs.push(["default", t.default]);
+    specs.forEach(function(pair, idx){
+      var key = team+"|"+idx, sp = pair[1];
+      rows += '<div class="card" style="margin-bottom:12px"><h2>'+team+" &middot; "+pair[0]+"</h2>" +
+        '<div class="row3">' +
+        colour(key+"_p","Primary",sp.primary) +
+        colour(key+"_s","Secondary",sp.secondary) +
+        colour(key+"_t","Trim",sp.trim) + "</div>" +
+        '<div class="row"><div><label>Club</label><input id="'+key+'_c" value="'+esc(sp.club||"")+'"></div>' +
+        '<div><label>Pattern</label><select id="'+key+'_pat">' +
+          ["plain","stripes","halves","sash","hoops"].map(function(p){
+            return '<option value="'+p+'"'+(sp.pattern===p?" selected":"")+">"+p+"</option>"; }).join("") +
+        "</select></div></div></div>";
+      setTimeout(function(){
+        bind(key+"_p", function(v){ sp.primary=v; });
+        bind(key+"_s", function(v){ sp.secondary=v; });
+        bind(key+"_t", function(v){ sp.trim=v; });
+        bind(key+"_c", function(v){ sp.club=v.toUpperCase(); });
+        bind(key+"_pat", function(v){ sp.pattern=v; });
+      },0);
+    });
+  });
+  return {main: rows || '<div class="card">No kits loaded.</div>', side: ""};
+}
+function colour(id,label,val){
+  return '<div><label>'+label+'</label><input id="'+id+'" type="color" value="'+(val||"#ffffff")+'" style="height:38px;padding:3px"></div>';
+}
+
+function progressionTab(){
+  var P = DATA.progression || {};
+  var X = P.xp || {}, LV = P.level || {};
+  var html = '<div class="card" style="margin-bottom:16px"><h2>Match rewards (XP)</h2><div class="row3">';
+  ["goal","perStar","underPar","noRewind","firstClear","seasonComplete"].forEach(function(k){
+    html += '<div><label>'+k+'</label><input id="xp_'+k+'" type="number" value="'+(X[k]||0)+'"></div>';
+  });
+  html += '</div></div><div class="card" style="margin-bottom:16px"><h2>Level curve</h2><div class="row3">' +
+    '<div><label>base</label><input id="lv_base" type="number" value="'+(LV.base||260)+'"></div>' +
+    '<div><label>exponent</label><input id="lv_exp" type="number" step="0.01" value="'+(LV.exponent||1.55)+'"></div>' +
+    '<div><label>max level</label><input id="lv_max" type="number" value="'+(LV.max||40)+'"></div>' +
+    '</div><p id="curvePreview" style="font-size:12px;color:var(--dim);margin:12px 0 0"></p></div>';
+
+  var ach = (P.achievements||[]).map(function(a){
+    return '<div class="item"><b>'+a.name+'</b><span>'+a.desc+" &middot; "+a.stat+" &ge; "+a.target+" &middot; +"+a.xp+" XP</span></div>";
+  }).join("");
+  html += '<div class="card"><h2>Achievements ('+((P.achievements||[]).length)+')</h2><div class="list">'+ach+"</div></div>";
+
+  setTimeout(function(){
+    ["goal","perStar","underPar","noRewind","firstClear","seasonComplete"].forEach(function(k){
+      bind("xp_"+k, function(v){ P.xp = P.xp||{}; P.xp[k] = +v; });
+    });
+    bind("lv_base", function(v){ P.level.base = +v; curve(); });
+    bind("lv_exp",  function(v){ P.level.exponent = +v; curve(); });
+    bind("lv_max",  function(v){ P.level.max = +v; });
+    curve();
+    function curve(){
+      var b = (P.level&&P.level.base)||260, e = (P.level&&P.level.exponent)||1.55;
+      var s = [2,5,10,20,30].map(function(n){
+        return "L"+n+" "+Math.round(b*Math.pow(n-1,e)).toLocaleString(); }).join("   ");
+      var el = $("curvePreview"); if (el) el.textContent = "Total XP to reach:  " + s;
+    }
+  },0);
+  return {main: html, side: ""};
+}
+
+function conditionsTab(){
+  var C = DATA.conditions || {}, pre = C.presets || {};
+  var html = "";
+  Object.keys(pre).forEach(function(name){
+    var c = pre[name];
+    html += '<div class="card" style="margin-bottom:12px"><h2>'+name+"</h2><div class=\"row3\">";
+    ["light","warm","flood","wet","rain","haze"].forEach(function(k){
+      html += '<div><label>'+k+'</label><input id="c_'+name+"_"+k+'" type="number" step="0.01" value="'+c[k]+'"></div>';
+    });
+    html += "</div></div>";
+    setTimeout(function(){
+      ["light","warm","flood","wet","rain","haze"].forEach(function(k){
+        bind("c_"+name+"_"+k, function(v){ c[k] = +v; });
+      });
+    },0);
+  });
+  return {main: html || '<div class="card">No conditions loaded.</div>', side:""};
+}
+
+function physicsTab(){
+  var P = DATA.physics || {};
+  var keys = Object.keys(P).filter(function(k){ return typeof P[k] === "number"; });
+  var html = '<div class="card"><h2>Ball physics</h2>' +
+    '<p style="font-size:12px;color:var(--bad);margin:0 0 12px">These are tuned against real measurements. ' +
+    'Changing them changes level balance — run <code>T.balance(400)</code> in the game afterwards.</p><div class="row3">';
+  keys.forEach(function(k){
+    html += '<div><label>'+k+'</label><input id="ph_'+k+'" type="number" step="0.001" value="'+P[k]+'"></div>';
+  });
+  html += "</div></div>";
+  setTimeout(function(){ keys.forEach(function(k){ bind("ph_"+k, function(v){ P[k]=+v; }); }); },0);
+  return {main: html, side:""};
+}
+
+function rawTab(){
+  var names = Object.keys(DATA).filter(function(n){ return n !== "kit-layout"; });
+  var name = names[Math.min(SEL, names.length-1)];
+  var html = '<div class="card"><h2>'+name+'.json</h2>' +
+    '<textarea id="rawBox" style="min-height:520px">'+esc(JSON.stringify(DATA[name],null,2))+"</textarea></div>";
+  setTimeout(function(){
+    var el = $("rawBox");
+    el.oninput = function(){
+      try { DATA[name] = JSON.parse(el.value); setDirty(true); log("parses", "ok"); }
+      catch(e){ log("not valid JSON yet: " + e.message, "err"); }
+    };
+  },0);
+  var list = names.map(function(n,i){
+    return '<div class="item '+(i===SEL?"on":"")+'" data-i="'+i+'"><b>'+n+"</b></div>"; }).join("");
+  return {main: html, side:'<div class="card"><h2>Files</h2>'+list+"</div>",
+          onList:function(i){ SEL=i; render(); }};
+}
+
+function render(){
+  var r;
+  if (TAB==="levels") r = levelsTab();
+  else if (TAB==="kits") r = kitsTab();
+  else if (TAB==="progression") r = progressionTab();
+  else if (TAB==="conditions") r = conditionsTab();
+  else if (TAB==="physics") r = physicsTab();
+  else r = rawTab();
+
+  if (typeof r === "string") r = {main:r, side:""};
+  $("editor").innerHTML = r.main;
+  var main = document.querySelector("main");
+  var sideHost = main.children[1];
+  var keep = sideHost.querySelectorAll(".card");
+  /* rebuild the right column: the tab's own list on top, help panels below */
+  var extra = r.side ? r.side : "";
+  if (!sideHost.dataset.base) sideHost.dataset.base = sideHost.innerHTML;
+  sideHost.innerHTML = extra + sideHost.dataset.base;
+
+  if (r.onList){
+    Array.prototype.forEach.call(sideHost.querySelectorAll(".item[data-i]"), function(el){
+      el.onclick = function(){ r.onList(+el.getAttribute("data-i")); };
+    });
+  }
+}
+
+/* -------------------------------------------------------------- transport */
+function saveAll(){
+  var names = ["levels","kits","progression","conditions","physics","pitch","ui","audio","difficulty"];
+  var chain = Promise.resolve(), failed = null;
+  names.forEach(function(n){
+    if (!DATA[n]) return;
+    chain = chain.then(function(){
+      if (failed) return;
+      return fetch("/api/save/"+n, {method:"POST", body: JSON.stringify(DATA[n])})
+        .then(function(r){ return r.json(); })
+        .then(function(j){ if (!j.ok) failed = n + ": " + j.out; });
+    });
+  });
+  return chain.then(function(){
+    if (failed){ log("SAVE REFUSED\n\n"+failed, "err"); return false; }
+    setDirty(false); log("saved and validated", "ok"); return true;
+  });
+}
+
+$("btnSave").onclick = function(){ saveAll(); };
+$("btnValidate").onclick = function(){
+  fetch("/api/validate",{method:"POST"}).then(function(r){return r.json();})
+    .then(function(j){ log(j.out, j.ok?"ok":"err"); });
+};
+$("btnBuild").onclick = function(){
+  saveAll().then(function(ok){
+    if (!ok) return;
+    return fetch("/api/build",{method:"POST"}).then(function(r){return r.json();})
+      .then(function(j){ log(j.out + (j.ok ? "\n\nPublished. Reload the game." : ""), j.ok?"ok":"err"); });
+  });
+};
+window.onbeforeunload = function(){ if (DIRTY) return "You have unsaved changes."; };
+
+fetch("/api/config").then(function(r){ return r.json(); }).then(function(j){
+  DATA = j; renderTabs(); render();
+  log("loaded " + Object.keys(j).length + " config files", "ok");
+});
+</script>
+</body>
+</html>

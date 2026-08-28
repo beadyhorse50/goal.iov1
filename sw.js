@@ -17,7 +17,7 @@
 
    Bump VERSION on release. Old caches are deleted on activate.
 */
-var VERSION = "v15";
+var VERSION = "v16";
 var CACHE = "goalio-" + VERSION;
 
 /* Every file the game needs to boot. Missing one here does not break the site

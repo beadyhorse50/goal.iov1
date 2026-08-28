@@ -54,6 +54,12 @@ footballers for Unity — a separate deliverable, referenced by
   the `anim.js` rig. Read the bind-fixup section before touching `js/skin.gl.js`:
   the two skeletons disagree about which way an arm bone points at bind, and
   getting it wrong renders every player in a T-pose.
+- **`docs/CMS.md`** — the content portal: `python tools/cms.py`. Edits every
+  `config/*.json` including a drag-and-drop scenario editor, and refuses to save
+  anything the validator rejects.
+- **`docs/CAREER.md`** — XP, levels, skills and achievements. The skills act only
+  where the kick is built, never inside `sim.js`, which is why `T.balance()` still
+  measures the base game.
 - **`docs/CONFIG.md`** — all game data lives in `config/*.json`. Edit those, then
   `python tools/config_validate.py && python tools/config_build.py`. `js/core.js`
   still holds the defaults and is never edited.

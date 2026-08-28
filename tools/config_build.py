@@ -31,7 +31,8 @@ CONFIG = os.path.join(HERE, "config")
 OUT = os.path.join(CONFIG, "config.bundle.js")
 
 # order matters only for readability; the loader keys off the names
-FILES = ["pitch", "physics", "conditions", "difficulty", "levels", "ui", "audio"]
+FILES = ["pitch", "physics", "conditions", "difficulty", "levels", "ui", "audio",
+         "kits", "kit-layout"]
 
 
 def strip_notes(o):

@@ -305,7 +305,11 @@ var SKIN = (function () {
           rough: mat.roughness == null ? 1 : mat.roughness,
           metal: mat.metallic == null ? 1 : mat.metallic,
           doubleSided: !!mat.doubleSided,
-          name: mat.name || ""
+          name: mat.name || "",
+          /* The kit is the one material a player can change. Matching on the
+             name is fragile if the generator is renamed, so a miss just means
+             the baked kit keeps showing — never a crash, never a blank shirt. */
+          isKit: /kit/i.test(mat.name || "")
         };
       });
     });
@@ -423,6 +427,31 @@ var SKIN = (function () {
 
   var queue = [], qn = 0;
 
+  /* GPU textures for painted kits, keyed the same way KIT caches its canvases.
+     A match shows three or four distinct kits, so this stays tiny. */
+  var kitTex = {};
+  function kitTextureFor(p) {
+    if (typeof KIT === "undefined" || !KIT.ready()) return null;
+    var team = p.role === "gk" ? "gk" : (p.team === "us" ? "us" : "them");
+    var season = 1;
+    if (typeof world !== "undefined" && world && world.level && world.level.season) {
+      season = world.level.season;
+    }
+    var spec = KIT.specFor(team, p.role, season);
+    if (!spec) return null;
+    /* Levels only name numbers for the player's own side, so opponents arrive
+       as 0 and would all run out wearing a nought. Derive one from where they
+       stand: deterministic, so a player keeps his number across a rewind. */
+    var num = (p.num != null && p.num > 0)
+      ? p.num
+      : 2 + (Math.abs(Math.round(p.x * 7 + p.y * 3)) % 9);
+    var key = team + "|" + season + "|" + num;
+    if (kitTex[key] !== undefined) return kitTex[key];
+    var canvas = KIT.get(spec, num);
+    kitTex[key] = canvas ? GLX.texFromCanvas(canvas, { repeat: true }) : null;
+    return kitTex[key];
+  }
+
   function collect(p, J, root, R, F, U) {
     if (!ready) return false;
     var key = p.role === "gk" ? "gk" : (p.team === "us" ? "us" : "them");
@@ -436,6 +465,7 @@ var SKIN = (function () {
     slot.model = model;
     slot.nj = model.joints.length;
     slot.x = p.x; slot.y = p.y;
+    slot.kit = kitTextureFor(p);
     qn++;
     return true;
   }
@@ -473,7 +503,9 @@ var SKIN = (function () {
       for (var k = 0; k < prims.length; k++) {
         var pr = prims[k];
         if (!depthOnly) {
-          GLX.bindTex(6, pr.base);
+          /* a painted kit overrides the baked one; everything else — skin,
+             boots, hair — keeps the texture that shipped with the model */
+          GLX.bindTex(6, (pr.isKit && q.kit) ? q.kit : pr.base);
           gl.uniform1i(prg.u.uBase, 6);
           GLX.bindTex(7, pr.mr);
           gl.uniform1i(prg.u.uMR, 7);

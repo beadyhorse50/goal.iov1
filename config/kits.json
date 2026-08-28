@@ -1,0 +1,19 @@
+{
+  "$note": "Club kits. Painted at runtime by js/kit.js over the UV layout in kit-layout.json, so changing a colour here changes every shirt with no new assets and no rebuild of the models. pattern: plain | stripes | halves | sash | hoops.",
+  "teams": {
+    "us": {
+      "$note": "The player's club, and it changes with the season - that is the whole point of this file.",
+      "bySeason": {
+        "1": { "club": "HACKNEY MARSH", "primary": "#f4fbff", "secondary": "#1b2a5e", "trim": "#1b2a5e", "pattern": "plain",   "numberColour": "#14161a" },
+        "2": { "club": "REDBRIDGE CITY", "primary": "#7ce8ff", "secondary": "#0b2f52", "trim": "#0b2f52", "pattern": "stripes", "numberColour": "#0b2f52" },
+        "3": { "club": "ATLETICO LISBOA", "primary": "#ffd23d", "secondary": "#8f1d2c", "trim": "#8f1d2c", "pattern": "sash",   "numberColour": "#8f1d2c" }
+      }
+    },
+    "them": {
+      "default": { "club": "OPPOSITION", "primary": "#5566d8", "secondary": "#2b3492", "trim": "#f0f4f8", "pattern": "halves", "numberColour": "#f0f4f8" }
+    },
+    "gk": {
+      "default": { "club": "KEEPER", "primary": "#25b596", "secondary": "#12705c", "trim": "#f0f4f8", "pattern": "plain", "numberColour": "#f0f4f8" }
+    }
+  }
+}

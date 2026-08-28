@@ -250,7 +250,7 @@ Serve with a second dev server so the two sessions do not fight over
 `shots/`:
 
 ```bash
-python goal.io/devserver.py goal.io goal.io/shots-gl 8125
+python devserver.py . shots-gl 8125
 ```
 
 `.claude/launch.json` has this as `goalio-gl`.

@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "goalio-dev",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["devserver.py", ".", "shots", "8124"],
+      "port": 8124
+    },
+    {
+      "name": "goalio-gl",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["devserver.py", ".", "shots-gl", "8125"],
+      "port": 8125
+    }
+  ]
+}

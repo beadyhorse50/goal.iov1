@@ -7,25 +7,55 @@ WebGL renderer (with the older canvas renderer intact as a fallback). Open `inde
 **Live:** https://beadyhorse50.github.io/goal.iov1/
 **Repo:** https://github.com/beadyhorse50/goal.iov1 (branch `main`, Pages from root)
 
+## Start here — every session
+
+**Everything for this project is inside this folder (`goal.io/`), which is also
+the git repo root.** Nothing about the game lives above it. If a chat opens in
+the parent workspace folder instead, that folder's `CLAUDE.md` points straight
+back here, so both entry points land in the same place.
+
+```
+goal.io/
+  CLAUDE.md               this file — the entry point for a new chat
+  README.md               player-facing + technical docs
+  index.html              shell, all CSS, HUD + overlay markup
+  js/                     the game (see docs/HANDOVER.md for the file map)
+  sw.js  manifest.webmanifest  icon-*.png     PWA install + offline
+  devserver.py            dev server that accepts screenshot POSTs
+  ui-preview.html         all UI screens, generated from the real CSS
+  docs/
+    HANDOVER.md           full state, what is broken, and the traps
+    REVIEW.md             critique — what is closed, what is open
+    GRAPHICS-AUDIT.md     what the renderer can and cannot do
+    WEBGL.md              the default renderer, and its three traps
+    UNITY-MIGRATION.md    plan for porting to Unity
+  .claude/launch.json     dev servers: goalio-dev (8124), goalio-gl (8125)
+  shots/ shots-gl/        dev captures — gitignored, regenerable
+```
+
+Not part of the game, one level up: `football-characters/` (four rigged glTF
+footballers for Unity — a separate deliverable, referenced by
+`docs/UNITY-MIGRATION.md`).
+
 ## Read these before changing anything
 
-- **`../HANDOVER.md`** — the full picture: what works, what is broken, and a list
+- **`docs/HANDOVER.md`** — the full picture: what works, what is broken, and a list
   of traps that have each already cost hours. Read it. Several of them are
   counter-intuitive and are the kind of thing you will otherwise rediscover the
   hard way.
-- **`../REVIEW.md`** — competitor review and pre-release critique, scored, with
+- **`docs/REVIEW.md`** — competitor review and pre-release critique, scored, with
   what is closed and what is still open.
-- **`../GRAPHICS-AUDIT.md`** — what the renderer can and cannot do, every
+- **`docs/GRAPHICS-AUDIT.md`** — what the renderer can and cannot do, every
   limitation that stands between it and AAA, and the exact assets that would have
   to be imported to lift each one. Read this before proposing a graphics feature:
   several obvious ones (reflections, skinned characters, textured kits) are
   blocked on assets that do not exist in the project, and the doc says so.
-- **`WEBGL.md`** — **the WebGL renderer is the default.** `js/gl.js`,
+- **`docs/WEBGL.md`** — **the WebGL renderer is the default.** `js/gl.js`,
   `js/post.gl.js`, `js/render.gl.js`. It draws the world, the players and a full
   post chain (bloom, depth of field, reprojected motion blur, a highlight
   shoulder, grading); the canvas renderer in `js/render.js` is still complete and
   is the automatic fallback if WebGL2 or any shader fails. `?gl=0` forces canvas.
-  Read WEBGL.md before touching either — in particular the three post-chain traps
+  Read `docs/WEBGL.md` before touching either — in particular the three post-chain traps
   (RGBA16F needs `EXT_color_buffer_float` or it fails silently; do not run a full
   filmic tonemap over a display-referred scene; reprojected motion blur must skip
   camera cuts).

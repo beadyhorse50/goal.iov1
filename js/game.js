@@ -213,10 +213,20 @@ function bonusTextFor(L) {
   }
 }
 
+/* COMPOSURE ranks buy extra rewinds. Applied to the World after it is built
+   rather than by changing REWINDS_PER_LEVEL, so the constant stays the base
+   value everything else — including the harness — reads. */
+function applyCareerRewinds() {
+  if (typeof CAREER === "undefined" || !world) return;
+  var extra = CAREER.mods().extraRewinds || 0;
+  if (extra > 0) world.rewinds += extra;
+}
+
 function startLevel(idx) {
   currentLevel = clamp(idx, 0, LEVELS.length - 1);
   var L = LEVELS[currentLevel];
   world = new World(L);
+  applyCareerRewinds();
   drag = null;
   overTimer = 0;
   resultShown = false;
@@ -461,6 +471,40 @@ function showResult() {
     '<div class="tile"><div class="v">' + world.rewinds +
       '</div><div class="k">REWINDS LEFT</div></div>';
 
+  /* XP ON THE RESULT CARD.
+
+     A progression system the player never sees land is a number in
+     localStorage. The breakdown matters more than the total: "UNDER PAR +40"
+     teaches what the game rewards, which is the only thing that will make
+     anyone replay a match they have already won. */
+  var xpHost = $("resXp");
+  if (xpHost) {
+    if (award && award.total) {
+      var rows = "";
+      for (var xi = 0; xi < award.lines.length; xi++) {
+        rows += '<div class="xpRow"><span>' + award.lines[xi].label +
+                '</span><b>+' + award.lines[xi].xp + "</b></div>";
+      }
+      rows += '<div class="xpRow xpTotal"><span>TOTAL</span><b>+' +
+              award.total + " XP</b></div>";
+      if (award.levelsGained > 0) {
+        rows += '<div class="lvlUp">LEVEL ' + award.level + " &middot; " +
+                award.levelsGained + " SKILL POINT" +
+                (award.levelsGained > 1 ? "S" : "") + "</div>";
+      }
+      for (var ai = 0; ai < award.achievements.length; ai++) {
+        rows += '<div class="lvlUp">' + award.achievements[ai].name + "</div>";
+      }
+      xpHost.innerHTML = rows;
+      xpHost.classList.remove("hide");
+      xpHost.classList.add("stg");
+      stagger(xpHost, ".xpRow, .lvlUp");
+    } else {
+      xpHost.innerHTML = "";
+      xpHost.classList.add("hide");
+    }
+  }
+
   var last = currentLevel >= LEVELS.length - 1;
   var bNext = $("btnNext"), bAgain = $("btnAgain"), bRw = $("btnResRewind");
 
@@ -476,6 +520,15 @@ function showResult() {
     bAgain.textContent = "RESTART MATCH";
   }
 
+  /* CAREER. Recorded before Save.record so "first clear" can still see that
+     this level had no stars a moment ago. */
+  var award = null;
+  if (typeof CAREER !== "undefined") {
+    if (goal) {
+      award = CAREER.award(L.id, stars, world, Save.starsFor(L.id) === 0);
+    }
+    CAREER.recordAttempt(goal);
+  }
   if (goal) Save.record(L.id, stars);
   $("result").classList.remove("hide");
   var rc = $("result");
@@ -581,6 +634,18 @@ function computeKick() {
   var speed = Math.min(clamp(6.5 + chordLen * 0.95, PHYS.MIN_SPEED, PHYS.MAX_SPEED) * M.powerMul,
                        PHYS.MAX_SPEED);
 
+  /* CAREER SKILLS.
+
+     Applied here, to the kick as it is constructed, and nowhere else. Nothing
+     below this reaches js/sim.js, so the ball physics and the keeper are
+     identical at every career level and T.balance() — which drives
+     world.kick() directly — still measures the base game. Every skill only
+     ever helps, so no spend can strand a player on a level. */
+  var CM = (typeof CAREER !== "undefined") ? CAREER.mods()
+                                           : { speedMul: 1, curveMul: 1, passRadius: 0 };
+  speed = Math.min(speed * CM.speedMul, PHYS.MAX_SPEED);
+  curve = clamp(curve * CM.curveMul, -1, 1);
+
   drag.dir = dir;
   drag.curve = curve * M.curveMul;
   drag.speed = speed;
@@ -590,7 +655,7 @@ function computeKick() {
   for (var k = 0; k < world.us.length; k++) {
     var m = world.us[k];
     if (m === world.carrier) continue;
-    if (dist(end.x, end.y, m.x, m.y) < 2.4) { drag.targetMate = m; break; }
+    if (dist(end.x, end.y, m.x, m.y) < 2.4 + CM.passRadius) { drag.targetMate = m; break; }
   }
 
   var ghost = b.copy();
@@ -759,6 +824,110 @@ function showSettings(back) {
 }
 
 /* ============================== screens ================================= */
+
+/* ======================================================================== */
+/* CAREER SCREEN                                                            */
+/* ======================================================================== */
+
+/* Built from the same classes every other screen uses — panel, progRow, prog,
+   tile, btn — so it inherits the design tokens rather than introducing a
+   second visual language. The only new CSS is the skill row and the
+   achievement chip, both in index.html. */
+function showCareer(back) {
+  screenState = "career";
+  $("overlay").classList.remove("hide");
+  $("playUI").classList.add("hide");
+  $("result").classList.add("hide");
+
+  var D = CAREER.data;
+  var pct = Math.round(CAREER.levelProgress() * 100);
+  var nextXp = CAREER.xpForLevel(D.level + 1);
+  var curXp = CAREER.xpForLevel(D.level);
+  var into = Math.max(0, D.xp - curXp), need = Math.max(1, nextXp - curXp);
+
+  /* ---- skills ---- */
+  var ids = CAREER.skillIds(), skillHtml = "";
+  for (var i = 0; i < ids.length; i++) {
+    var id = ids[i], def = CAREER.skillDef(id), rank = D.skills[id] || 0;
+    var max = def.max || 5, pips = "";
+    for (var p = 0; p < max; p++) {
+      pips += '<i class="' + (p < rank ? "on" : "") + '"></i>';
+    }
+    var can = CAREER.canSpend(id);
+    skillHtml +=
+      '<div class="skill">' +
+        '<div class="sk-main">' +
+          '<div class="sk-name">' + def.name + '<span class="sk-rank">' + rank + " / " + max + "</span></div>" +
+          '<div class="sk-desc">' + def.desc + "</div>" +
+          '<div class="sk-pips">' + pips + "</div>" +
+        "</div>" +
+        '<button class="sk-add' + (can ? "" : " off") + '" data-skill="' + id + '"' +
+          (can ? "" : " disabled") + ">+</button>" +
+      "</div>";
+  }
+
+  /* ---- achievements ---- */
+  var list = CAREER.achievements(), achHtml = "", got = 0;
+  for (var a = 0; a < list.length; a++) {
+    var A = list[a], has = !!D.ach[A.id];
+    if (has) got++;
+    achHtml +=
+      '<div class="ach' + (has ? " on" : "") + '">' +
+        '<div class="ach-t">' + A.name + "</div>" +
+        '<div class="ach-d">' + A.desc + "</div>" +
+      "</div>";
+  }
+
+  var st = D.stats;
+  var acc = st.attempts ? Math.round(st.goals / st.attempts * 100) : 0;
+
+  paintScreen(
+    '<div class="brandRow"><div class="brandSlash"></div>' +
+      '<div class="brand" style="font-size:30px">CAREER</div></div>' +
+    '<div class="kicker">LEVEL ' + D.level + " &middot; " + D.xp.toLocaleString() + " XP</div>" +
+
+    '<div class="panel">' +
+      '<div class="progRow" style="margin-top:0"><span>LEVEL ' + D.level +
+        '</span><b>' + into.toLocaleString() + " / " + need.toLocaleString() + " XP</b></div>" +
+      '<div class="prog gold"><i style="width:' + pct + '%"></i></div>' +
+      '<div class="progRow" style="margin-top:11px"><span>NEXT</span>' +
+        '<b style="font-size:11px;letter-spacing:.12em">LEVEL ' + (D.level + 1) + "</b></div>" +
+    "</div>" +
+
+    '<div class="tiles">' +
+      '<div class="tile"><div class="v">' + st.goals + '</div><div class="k">GOALS</div></div>' +
+      '<div class="tile"><div class="v">' + st.threeStars + '</div><div class="k">3-STAR</div></div>' +
+      '<div class="tile"><div class="v">' + acc + '%</div><div class="k">CONVERSION</div></div>' +
+      '<div class="tile"><div class="v">' + st.bestStreak + '</div><div class="k">BEST RUN</div></div>' +
+    "</div>" +
+
+    '<div class="panel"><h3>Skills' +
+      (D.sp > 0 ? '<span class="sp">' + D.sp + " POINT" + (D.sp > 1 ? "S" : "") + "</span>" : "") +
+      "</h3>" + skillHtml + "</div>" +
+
+    '<div class="panel"><h3>Achievements<span class="sp dim">' + got + " / " + list.length + "</span></h3>" +
+      '<div class="achGrid">' + achHtml + "</div></div>" +
+
+    '<div class="grow"></div>' +
+    '<button class="btn ghost" id="btnCarBack">BACK</button>',
+  function () {
+    sheenUp($("ovContent"));
+    var adds = $("ovContent").querySelectorAll(".sk-add");
+    for (var k = 0; k < adds.length; k++) {
+      (function (btn) {
+        if (btn.disabled) return;
+        tap(btn, function () {
+          if (CAREER.spend(btn.getAttribute("data-skill"))) {
+            SFX.star(1); buzz(14);
+            showCareer(back);            /* repaint: ranks, pips and points all move */
+          }
+        }, "confirm");
+      })(adds[k]);
+    }
+    tap($("btnCarBack"), function () { (back || showMenu)(); });
+  });
+}
+
 function showMenu() {
   screenState = "menu";
   $("overlay").classList.remove("hide");
@@ -792,6 +961,7 @@ function showMenu() {
     '<button class="btn" id="btnPlay">' +
       (Save.data.unlocked > 1 ? "CONTINUE" : "START CAREER") + "</button>" +
     '<button class="btn ghost" id="btnLevels">ALL MATCHES</button>' +
+    '<button class="btn ghost" id="btnCareer">CAREER</button>' +
     '<button class="btn ghost" id="btnHow">HOW TO PLAY</button>' +
     '<button class="btn ghost" id="btnSettings">SETTINGS</button>' +
     '<div id="howBox"></div>',
@@ -799,6 +969,7 @@ function showMenu() {
   sheenUp($("ovContent"));
   tap($("btnPlay"), function () { showStory(levelIndexById(resume)); }, "confirm");
   tap($("btnLevels"), function () { showLevels(); });
+  tap($("btnCareer"), function () { showCareer(showMenu); });
   tap($("btnSettings"), function () { showSettings(showMenu); });
   tap($("btnHow"), function () {
     var box = $("howBox");
@@ -1035,6 +1206,7 @@ function onLevelOver() {
 
   step(12, "LOADING");
   Save.load();
+  if (typeof CAREER !== "undefined") CAREER.load();
   mode = Save.data.mode || 0;
 
   step(34, "PITCH");

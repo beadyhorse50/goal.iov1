@@ -1,0 +1,63 @@
+{
+  "$note": "Career progression. Every number a designer would want to balance is here: what a match is worth, how steep the level curve is, what each skill rank does, and what unlocks an achievement. Nothing in this file can make a level unwinnable - the skills only ever help, and they default to zero, so a level-1 career plays the base game exactly as T.balance() measures it.",
+
+  "xp": {
+    "$note": "Awarded on a goal only. A miss costs nothing but the attempt.",
+    "goal": 100,
+    "perStar": 60,
+    "underPar": 40,
+    "noRewind": 50,
+    "firstClear": 120,
+    "seasonComplete": 400
+  },
+
+  "level": {
+    "$note": "Total XP to REACH a level: base * (n-1)^exponent. A full 15-match career at three stars lands around level 8, so the curve still has room for replay.",
+    "base": 260,
+    "exponent": 1.55,
+    "max": 40,
+    "skillPointsPerLevel": 1
+  },
+
+  "skills": {
+    "$note": "All four act when the kick is constructed or when a level starts - never inside the simulation - so the physics and the keeper are untouched and balance testing stays honest.",
+    "power": {
+      "name": "POWER", "max": 5, "perRank": 0.02,
+      "unit": "shot speed",
+      "desc": "Two per cent more pace on every strike, per rank."
+    },
+    "curve": {
+      "name": "CURVE", "max": 5, "perRank": 0.06,
+      "unit": "bend",
+      "desc": "Six per cent more bend on the same stroke, per rank."
+    },
+    "vision": {
+      "name": "VISION", "max": 5, "perRank": 0.35,
+      "unit": "m pass radius",
+      "desc": "A wider window to pick out a team-mate, per rank."
+    },
+    "composure": {
+      "name": "COMPOSURE", "max": 4, "perRank": 0.5,
+      "unit": "rewinds",
+      "desc": "An extra rewind every two ranks."
+    }
+  },
+
+  "achievements": [
+    { "id": "first_goal",   "name": "OFF THE MARK",    "desc": "Score your first goal.",                  "stat": "goals",       "target": 1,  "xp": 60 },
+    { "id": "goals_10",     "name": "REGULAR",         "desc": "Score ten goals.",                        "stat": "goals",       "target": 10, "xp": 150 },
+    { "id": "goals_50",     "name": "TALISMAN",        "desc": "Score fifty goals.",                      "stat": "goals",       "target": 50, "xp": 500 },
+    { "id": "star_first",   "name": "PERFECTIONIST",   "desc": "Take all three stars in a match.",        "stat": "threeStars",  "target": 1,  "xp": 90 },
+    { "id": "star_10",      "name": "NO LOOSE ENDS",   "desc": "Three-star ten matches.",                 "stat": "threeStars",  "target": 10, "xp": 400 },
+    { "id": "clean_5",      "name": "NERVELESS",       "desc": "Win five matches without a rewind.",      "stat": "cleanWins",   "target": 5,  "xp": 220 },
+    { "id": "curve_goal",   "name": "AROUND THE WALL", "desc": "Score with bend on the ball.",            "stat": "curveGoals",  "target": 1,  "xp": 80 },
+    { "id": "chip_goal",    "name": "OVER THE TOP",    "desc": "Score with a chip.",                      "stat": "chipGoals",   "target": 1,  "xp": 80 },
+    { "id": "outside_goal", "name": "FROM DISTANCE",   "desc": "Score from outside the box.",             "stat": "outsideGoals","target": 1,  "xp": 80 },
+    { "id": "streak_5",     "name": "IN FORM",         "desc": "Score in five matches in a row.",         "stat": "bestStreak",  "target": 5,  "xp": 260 },
+    { "id": "season_1",     "name": "SUNDAY BEST",     "desc": "Finish the Sunday League season.",        "stat": "seasonsDone", "target": 1,  "xp": 300 },
+    { "id": "season_2",     "name": "WORTH THE FEE",   "desc": "Finish the Championship season.",         "stat": "seasonsDone", "target": 2,  "xp": 450 },
+    { "id": "season_3",     "name": "CONTINENTAL",     "desc": "Finish the European season.",             "stat": "seasonsDone", "target": 3,  "xp": 700 },
+    { "id": "level_5",      "name": "ESTABLISHED",     "desc": "Reach career level 5.",                   "stat": "level",       "target": 5,  "xp": 0 },
+    { "id": "level_10",     "name": "FIRST NAME ON THE SHEET", "desc": "Reach career level 10.",          "stat": "level",       "target": 10, "xp": 0 }
+  ]
+}

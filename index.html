@@ -494,6 +494,45 @@
   #stars span.land{animation:starLand .52s cubic-bezier(.16,1.5,.3,1) both}
   @keyframes starLand{from{transform:scale(2.4) rotate(-24deg);opacity:0}
     60%{opacity:1}to{transform:scale(1) rotate(0);opacity:1}}
+
+  /* ---- career: skills and achievements -------------------------------
+     Everything here is built from the existing tokens. No new colours, no
+     new radii, no new spacing values — a second palette is how a UI starts
+     looking like two UIs stitched together. */
+  .panel h3 .sp{float:right;font-size:10px;letter-spacing:.14em;
+    color:var(--n900);background:var(--g400);padding:2px 7px;border-radius:999px}
+  .panel h3 .sp.dim{background:none;color:var(--dim);padding:0}
+  .skill{display:flex;align-items:center;gap:var(--s3);
+    padding:var(--s3) 0;border-top:1px solid var(--line)}
+  .skill:first-of-type{border-top:0}
+  .sk-main{flex:1;min-width:0}
+  .sk-name{font-size:12px;letter-spacing:.13em;color:var(--ink);font-weight:700}
+  .sk-rank{float:right;color:var(--dim);letter-spacing:.08em}
+  .sk-desc{font-size:11px;color:var(--dim);margin-top:3px;line-height:1.45}
+  .sk-pips{display:flex;gap:4px;margin-top:7px}
+  .sk-pips i{width:22px;height:4px;border-radius:2px;background:var(--line2)}
+  .sk-pips i.on{background:var(--g400)}
+  .sk-add{width:38px;height:38px;flex:0 0 38px;border-radius:var(--r-s);
+    border:1px solid var(--line2);background:var(--panel);color:var(--ink);
+    font-size:20px;line-height:1;cursor:pointer;position:relative;overflow:hidden}
+  .sk-add.off{opacity:.28;cursor:default}
+  .achGrid{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2);margin-top:var(--s2)}
+  .ach{padding:var(--s2) var(--s3);border-radius:var(--r-s);
+    background:var(--panel);border:1px solid var(--line);opacity:.42}
+  .ach.on{opacity:1;border-color:var(--g600);
+    background:linear-gradient(180deg,rgba(255,194,51,.10),rgba(255,194,51,.02))}
+  .ach-t{font-size:10px;letter-spacing:.12em;font-weight:700;color:var(--ink)}
+  .ach.on .ach-t{color:var(--g400)}
+  .ach-d{font-size:10px;color:var(--dim);margin-top:3px;line-height:1.4}
+  /* the XP line on the result card */
+  .xpRow{display:flex;justify-content:space-between;align-items:baseline;
+    font-size:11px;letter-spacing:.1em;color:var(--dim);margin-top:6px}
+  .xpRow b{color:var(--g400)}
+  .xpTotal{font-size:13px;letter-spacing:.12em;color:var(--ink);
+    margin-top:var(--s2);padding-top:var(--s2);border-top:1px solid var(--line)}
+  .lvlUp{margin-top:var(--s2);padding:var(--s2) var(--s3);border-radius:var(--r-s);
+    background:linear-gradient(180deg,rgba(255,194,51,.16),rgba(255,194,51,.04));
+    border:1px solid var(--g600);font-size:12px;letter-spacing:.12em;color:var(--g400)}
 </style>
 </head>
 <body>
@@ -557,6 +596,7 @@
     </div>
     <p id="resSub"></p>
     <div id="resStats"></div>
+    <div id="resXp" class="hide"></div>
     <button class="btn" id="btnNext">NEXT MATCH</button>
     <button class="btn danger" id="btnResRewind">REWIND</button>
     <button class="btn ghost" id="btnAgain">RESTART MATCH</button>
@@ -583,6 +623,7 @@
 <script src="js/render.gl.js"></script>
 <script src="js/skin.gl.js"></script>
 <script src="js/fx.js"></script>
+<script src="js/career.js"></script>
 <script src="js/game.js"></script>
 <script>
 if ('serviceWorker' in navigator) {

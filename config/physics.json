@@ -1,0 +1,37 @@
+{
+  "$note": "Ball physics, tuned against real measurements: a 20 m/s ground pass runs ~48 m, a driven shot first bounces ~21 m out, a chip peaks near 7 m. Retuning these changes level balance - run tools/config_validate.py and T.balance() afterwards.",
+  "G": 9.81,
+  "BALL_R": 0.112,
+  "AIR_K": 0.01,
+  "ROLL_DECEL": 2.3,
+  "SKID_DECEL": 1.6,
+  "CURVE_K": 0.42,
+  "CURVE_GROUND": 0.4,
+  "SPIN_DECAY": 0.62,
+  "BOUNCE": 0.55,
+  "BOUNCE_FRICTION": 0.76,
+  "MAX_SPEED": 34,
+  "MIN_SPEED": 7,
+  "modes": [
+    {
+      "name": "GROUND",
+      "angle": 0,
+      "powerMul": 1,
+      "curveMul": 1
+    },
+    {
+      "name": "DRIVEN",
+      "angle": 9,
+      "powerMul": 1.14,
+      "curveMul": 0.85
+    },
+    {
+      "name": "CHIP",
+      "angle": 29,
+      "powerMul": 0.86,
+      "curveMul": 0.7
+    }
+  ],
+  "rewindsPerLevel": 3,
+  "kickAnimSeconds": 0.42
+}

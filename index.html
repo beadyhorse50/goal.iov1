@@ -566,7 +566,11 @@
 <div id="overlay"><div id="ovContent"></div></div>
 
 <script src="js/res.js"></script>
+<!-- game data: config/*.json, bundled by tools/config_build.py.
+     Both are optional — core.js's built-in values stand if they are absent. -->
+<script src="config/config.bundle.js"></script>
 <script src="js/core.js"></script>
+<script src="js/config.js"></script>
 <script src="js/sim.js"></script>
 <script src="js/anim.js"></script>
 <script src="js/audio.js"></script>

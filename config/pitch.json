@@ -1,0 +1,15 @@
+{
+  "$note": "Pitch geometry in metres. Origin is the centre spot. Changing these moves every marking, both goals and the stadium bowl that is generated from them.",
+  "halfW": 34,
+  "halfL": 52.5,
+  "goalHalf": 3.66,
+  "crossbar": 2.44,
+  "sixHalf": 9.16,
+  "sixDepth": 5.5,
+  "boxHalf": 20.16,
+  "boxDepth": 16.5,
+  "penSpot": 11,
+  "arcR": 9.15,
+  "centreR": 9.15,
+  "cornerR": 1
+}

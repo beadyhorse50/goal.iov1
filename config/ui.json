@@ -1,0 +1,50 @@
+{
+  "$note": "UI design tokens. These are written straight onto :root as CSS custom properties at boot, so every panel, button and card in index.html follows them. Changing --b500 restyles the whole game.",
+  "palette": {
+    "n900": "#050b16",
+    "n800": "#08111f",
+    "n700": "#0b1728",
+    "n600": "#101f34",
+    "n500": "#16293f",
+    "n400": "#1e344c",
+    "n300": "#2a4359",
+    "b600": "#0069d9",
+    "b500": "#0090ff",
+    "b400": "#38b0ff",
+    "b300": "#7ccdff",
+    "g600": "#c98a0a",
+    "g500": "#f0a91b",
+    "g400": "#ffc233",
+    "g300": "#ffd970",
+    "ink": "#f2f7fc",
+    "ink2": "#c3d2e0",
+    "dim": "#8199b0",
+    "dim2": "#5a7189",
+    "bad": "#ff4763",
+    "good": "#25d97a",
+    "panel": "rgba(255,255,255,.045)",
+    "line": "rgba(255,255,255,.09)",
+    "line2": "rgba(255,255,255,.16)",
+    "glow": "rgba(0,144,255,.34)"
+  },
+  "radius": {
+    "r-s": "10px",
+    "r-m": "16px",
+    "r-l": "22px",
+    "r-xl": "28px"
+  },
+  "space": {
+    "s1": "4px",
+    "s2": "8px",
+    "s3": "12px",
+    "s4": "16px",
+    "s5": "24px",
+    "s6": "32px",
+    "s7": "48px"
+  },
+  "other": {
+    "safeT": "env(safe-area-inset-top,0px)",
+    "safeB": "env(safe-area-inset-bottom,0px)",
+    "face": "\"Bahnschrift SemiCondensed\",\"Bahnschrift\",\"Roboto Condensed\",\n           \"SF Compact Display\",\"Helvetica Neue\",system-ui,-apple-system,sans-serif"
+  }
+}

@@ -1,0 +1,112 @@
+{
+  "$note": "Weather and lighting. light=exposure, warm=colour temperature, flood=floodlight contribution, wet=surface sheen, rain=0..1, haze=distance falloff, sky=[zenith, mid, horizon]. Presentation only - never touches the ball.",
+  "presets": {
+    "afternoon": {
+      "light": 1,
+      "warm": 0.55,
+      "flood": 0.1,
+      "wet": 0,
+      "rain": 0,
+      "haze": 1,
+      "sunEl": 40,
+      "sunAz": 128,
+      "sky": [
+        "#1f4f78",
+        "#77b1cf",
+        "#e2edee"
+      ]
+    },
+    "goldenHour": {
+      "light": 0.96,
+      "warm": 1,
+      "flood": 0.25,
+      "wet": 0,
+      "rain": 0,
+      "haze": 1.25,
+      "sunEl": 9,
+      "sunAz": 105,
+      "sky": [
+        "#243f6b",
+        "#b3763f",
+        "#f5cf9a"
+      ]
+    },
+    "overcast": {
+      "light": 0.88,
+      "warm": 0.18,
+      "flood": 0.3,
+      "wet": 0.18,
+      "rain": 0,
+      "haze": 1.45,
+      "sunEl": 34,
+      "sunAz": 142,
+      "sky": [
+        "#43505c",
+        "#7c8a94",
+        "#c3ccd1"
+      ]
+    },
+    "rain": {
+      "light": 0.8,
+      "warm": 0.1,
+      "flood": 0.55,
+      "wet": 0.72,
+      "rain": 1,
+      "haze": 1.75,
+      "sunEl": 27,
+      "sunAz": 155,
+      "sky": [
+        "#2e3944",
+        "#5b6874",
+        "#98a4ad"
+      ]
+    },
+    "night": {
+      "light": 0.66,
+      "warm": 0.3,
+      "flood": 1,
+      "wet": 0.1,
+      "rain": 0,
+      "haze": 0.85,
+      "sunEl": 33,
+      "sunAz": 205,
+      "sky": [
+        "#070b14",
+        "#0e1626",
+        "#1d2a3c"
+      ]
+    },
+    "nightRain": {
+      "light": 0.62,
+      "warm": 0.2,
+      "flood": 1,
+      "wet": 0.78,
+      "rain": 1,
+      "haze": 1.3,
+      "sunEl": 31,
+      "sunAz": 212,
+      "sky": [
+        "#060910",
+        "#101a28",
+        "#1f2c3a"
+      ]
+    }
+  },
+  "byLevel": {
+    "1": "afternoon",
+    "2": "afternoon",
+    "3": "goldenHour",
+    "4": "overcast",
+    "5": "rain",
+    "6": "afternoon",
+    "7": "overcast",
+    "8": "rain",
+    "9": "goldenHour",
+    "10": "night",
+    "11": "night",
+    "12": "nightRain",
+    "13": "night",
+    "14": "nightRain",
+    "15": "night"
+  }
+}

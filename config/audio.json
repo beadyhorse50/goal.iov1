@@ -1,0 +1,8 @@
+{
+  "$note": "Audio bus levels, 0..1. master is the final gain before the compressor; wet is the send into the stadium impulse response. Raising wet past ~0.4 makes every sound feel like it is in a cathedral.",
+  "master": 0.9,
+  "wet": 0.28,
+  "dry": 1.0,
+  "crowdBed": 0.55,
+  "sfx": 1.0
+}

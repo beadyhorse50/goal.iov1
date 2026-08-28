@@ -50,6 +50,10 @@ footballers for Unity — a separate deliverable, referenced by
   to be imported to lift each one. Read this before proposing a graphics feature:
   several obvious ones (reflections, skinned characters, textured kits) are
   blocked on assets that do not exist in the project, and the doc says so.
+- **`docs/BLENDER.md`** — Blender IS installed and is part of the toolchain, used
+  headless by script. `tools/blender/roundtrip.py` is the gate to run before
+  trusting it with the rig; `tools/blender/stadium_props.py` generates the
+  corner flags, floodlights and dugouts.
 - **`docs/PLAYERS.md`** — players are a skinned, textured glTF mesh driven by
   the `anim.js` rig. Read the bind-fixup section before touching `js/skin.gl.js`:
   the two skeletons disagree about which way an arm bone points at bind, and
@@ -75,8 +79,10 @@ footballers for Unity — a separate deliverable, referenced by
 
 ## The environment
 
-Python 3.14 and a browser. **No npm, no Node, no Unity, no Blender, no numpy, no
-Pillow.** Everything here is stdlib Python and plain JS, deliberately.
+Python 3.14, **Blender 5.2 LTS** (used headless — see `docs/BLENDER.md`) and a
+browser. **No npm, no Node, no Unity, no numpy, no Pillow.** The game itself is
+stdlib Python and plain JS with no build step, deliberately; Blender is an
+asset-authoring tool that runs offline and commits its output.
 
 ## Verifying visually — read this or you will waste time
 

@@ -139,8 +139,20 @@ var GLTF = (function () {
        else would mean the joint frames no longer match the model axes, which
        is the assumption the whole animation mapping rests on, so it is
        checked rather than silently accepted. --- */
+    /* Static props (assets/models/stadium_props.glb) have no skin. That is a
+       legitimate model, not a broken one — so an absent skin yields an empty
+       joint list rather than a failure, and js/props.gl.js draws the mesh with
+       a plain model matrix. A skinned model with a MALFORMED skin still throws
+       below, which is the case worth being strict about. */
     var skin = (J.skins || [])[0];
-    if (!skin) fail("no skin — this loader is only for skinned characters");
+    if (!skin) {
+      return {
+        joints: [],
+        meshes: buildMeshes(g, J),
+        materials: buildMaterials(J),
+        imageCount: (J.images || []).length
+      };
+    }
     var jointNodes = skin.joints;
     var parentOf = {};
     (J.nodes || []).forEach(function (n, i) {
@@ -182,8 +194,21 @@ var GLTF = (function () {
       }
     }
 
-    /* --- meshes. Each mesh is one LOD; each primitive is one material. --- */
-    var meshes = (J.meshes || []).map(function (m, mi) {
+    var meshes = buildMeshes(g, J);
+    var materials = buildMaterials(J);
+
+    return {
+      joints: joints,
+      meshes: meshes,
+      materials: materials,
+      imageCount: (J.images || []).length
+    };
+  }
+
+  /* --- meshes. For a character each mesh is one LOD; each primitive is one
+     material. For a prop there is one mesh per prop. --- */
+  function buildMeshes(g, J) {
+    return (J.meshes || []).map(function (m, mi) {
       return {
         name: m.name || ("mesh" + mi),
         prims: m.primitives.map(function (p) {
@@ -203,13 +228,16 @@ var GLTF = (function () {
         })
       };
     });
+  }
 
-    /* --- materials --- */
-    var materials = (J.materials || []).map(function (m) {
+  /* --- materials. A prop carries no textures at all, so baseTex and mrTex
+     come back as -1 and js/props.gl.js shades from baseColor alone. --- */
+  function buildMaterials(J) {
+    return (J.materials || []).map(function (m) {
       var pbr = m.pbrMetallicRoughness || {};
       function texSource(t) {
         if (!t) return -1;
-        var tex = J.textures[t.index];
+        var tex = (J.textures || [])[t.index];
         return tex && tex.source != null ? tex.source : -1;
       }
       return {
@@ -223,13 +251,6 @@ var GLTF = (function () {
         alphaMode: m.alphaMode || "OPAQUE"
       };
     });
-
-    return {
-      joints: joints,
-      meshes: meshes,
-      materials: materials,
-      imageCount: (J.images || []).length
-    };
   }
 
   /* ----------------------------------------------------------------- load */

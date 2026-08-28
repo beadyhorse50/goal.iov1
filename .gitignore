@@ -11,3 +11,4 @@ overhaul.html
 __pycache__/
 .DS_Store
 career-preview.html
+build/

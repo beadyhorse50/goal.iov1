@@ -1825,6 +1825,7 @@ var GLR = (function () {
 
     /* after the programs exist, so SKIN can borrow the GLSL chunks */
     if (typeof SKIN !== "undefined") SKIN.boot(gl);
+    if (typeof PROPS !== "undefined") PROPS.boot(gl);
 
     SHADOW = GLX.depthTarget(SHADOW_SIZE);
     size();
@@ -2808,6 +2809,11 @@ var GLR = (function () {
   }
 
   function drawPlayers(depthOnly) {
+    /* Props ride along with the player pass: same two calls (shadow, then
+       shading), so a corner flag casts onto the turf like everything else. */
+    if (typeof PROPS !== "undefined" && PROPS.enabled) {
+      PROPS.draw(depthOnly, mLightVP, Cam.px, Cam.py);
+    }
     if (typeof SKIN !== "undefined" && SKIN.enabled) SKIN.draw(depthOnly, mLightVP);
     if (!pl_n && !ps_n) return;
     var L = GLX.use(depthOnly ? P.playerDepth : P.player);

@@ -9,13 +9,21 @@ publishes the bundle the game loads.
 
 ## Why it is not Streamlit
 
-The brief asked for a Streamlit portal. Streamlit is not installed and cannot
-be installed here: no pip, no npm, no Node. Python 3 stdlib and a browser is
-the whole toolchain, and a portal that cannot be run is worth less than one
-that can.
+**Correction, recorded because it was wrong when first written.** The original
+version of this file said Streamlit "cannot be installed here: no pip, no npm,
+no Node". `pip 26.2.1` is installed and `pip install --dry-run streamlit`
+resolves cleanly, so Streamlit and FastAPI **can** be installed. The no-pip
+claim came from checking which modules imported, not from checking for pip.
 
-So this is the same portal on `http.server`. The part worth designing is the
-**data layer**, and that is identical either way:
+The portal is still stdlib, and now for a better reason than "we cannot": it
+has **no dependencies to install, nothing to keep updated, and it starts in a
+tenth of a second** on a machine that otherwise needs no Python environment at
+all. Adding Streamlit would buy nicer widgets at the cost of a dependency tree
+for a tool three people will ever run.
+
+If you want the Streamlit version, the part worth designing is the **data
+layer**, and it is identical either way — a Streamlit front end drops onto
+these same endpoints and nothing else changes:
 
 | Endpoint | |
 |---|---|
@@ -25,8 +33,8 @@ So this is the same portal on `http.server`. The part worth designing is the
 | `POST /api/validate` | run `tools/config_validate.py` |
 | `POST /api/build` | validate, then run `tools/config_build.py` |
 
-A Streamlit front end drops onto those the day the dependency exists. Nothing
-else changes.
+That is the whole contract. Swapping the view is a front-end job, not a
+re-architecture.
 
 ## The validation gate
 

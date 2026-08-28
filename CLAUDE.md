@@ -80,7 +80,9 @@ footballers for Unity — a separate deliverable, referenced by
 ## The environment
 
 Python 3.14, **Blender 5.2 LTS** (used headless — see `docs/BLENDER.md`) and a
-browser. **No npm, no Node, no Unity, no numpy, no Pillow.** The game itself is
+browser. **No npm, no Node, no Unity.** `pip` works, so Python packages are installable
+(numpy, Pillow, FastAPI, Streamlit are simply not used — the game and its tools
+are deliberately dependency-free). The game itself is
 stdlib Python and plain JS with no build step, deliberately; Blender is an
 asset-authoring tool that runs offline and commits its output.
 

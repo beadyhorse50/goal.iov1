@@ -1,0 +1,1160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>goal.io Art Bible</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --n900:#050b16; --n800:#08111f; --n700:#0b1728; --n600:#101f34;
+  --n500:#16293f; --n400:#1e344c; --n300:#2a4359;
+  --b600:#0069d9; --b500:#0090ff; --b400:#38b0ff; --b300:#7ccdff;
+  --g600:#c98a0a; --g500:#f0a91b; --g400:#ffc233; --g300:#ffd970;
+  --ink:#f2f7fc; --ink2:#c3d2e0; --dim:#8199b0; --dim2:#5a7189;
+  --bad:#ff4763; --good:#25d97a;
+  --panel:rgba(255,255,255,.045); --line:rgba(255,255,255,.09); --line2:rgba(255,255,255,.16);
+  --cond:"Barlow Condensed","Bahnschrift SemiCondensed","Roboto Condensed",system-ui,sans-serif;
+  --body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--n900); color:var(--ink2);
+  font-family:var(--body); font-size:15.5px; line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(1100px 620px at 82% -8%, rgba(0,144,255,.14), transparent 62%),
+    radial-gradient(880px 520px at 6% 4%, rgba(255,194,51,.055), transparent 60%);
+  background-attachment:fixed;
+}
+.wrap{max-width:1080px;margin:0 auto;padding:0 22px 100px}
+
+/* ---------- masthead ---------- */
+header.mast{padding:64px 0 30px;border-bottom:1px solid var(--line)}
+.eyebrow{font-family:var(--cond);text-transform:uppercase;letter-spacing:.22em;
+  font-size:12.5px;font-weight:600;color:var(--b400)}
+h1{font-family:var(--cond);font-size:clamp(46px,8.5vw,82px);line-height:.94;margin:12px 0 0;
+  font-weight:700;letter-spacing:-.005em;color:var(--ink);text-transform:uppercase}
+h1 .thin{color:var(--dim);font-weight:400}
+.standfirst{margin:18px 0 0;max-width:60ch;font-size:17px;color:var(--ink2)}
+.meta{margin-top:22px;display:flex;flex-wrap:wrap;gap:8px}
+.tag{font-family:var(--cond);text-transform:uppercase;letter-spacing:.12em;font-size:11.5px;
+  font-weight:600;padding:5px 11px;border-radius:999px;border:1px solid var(--line2);
+  color:var(--dim);background:var(--panel)}
+.tag.live{color:var(--good);border-color:rgba(37,217,122,.32)}
+.tag.tgt{color:var(--g400);border-color:rgba(255,194,51,.3)}
+
+/* ---------- nav ---------- */
+nav.toc{position:sticky;top:0;z-index:20;margin:0 -22px;padding:11px 22px;
+  background:rgba(5,11,22,.86);backdrop-filter:blur(16px);
+  border-bottom:1px solid var(--line);overflow-x:auto;white-space:nowrap}
+nav.toc a{font-family:var(--cond);text-transform:uppercase;letter-spacing:.11em;font-size:12.5px;
+  font-weight:600;color:var(--dim);text-decoration:none;margin-right:20px;
+  padding-bottom:2px;border-bottom:2px solid transparent}
+nav.toc a:hover{color:var(--b400);border-bottom-color:var(--b500)}
+nav.toc a b{color:var(--dim2);font-weight:600;margin-right:5px}
+
+/* ---------- sections ---------- */
+section{padding-top:56px;scroll-margin-top:56px}
+h2{font-family:var(--cond);text-transform:uppercase;font-size:clamp(28px,4.4vw,40px);
+  line-height:1.02;margin:0 0 6px;font-weight:700;color:var(--ink);letter-spacing:.005em;
+  display:flex;align-items:baseline;gap:14px}
+h2 .num{color:var(--g400);font-size:.62em;letter-spacing:.06em}
+h3{font-family:var(--cond);text-transform:uppercase;letter-spacing:.1em;font-size:15px;
+  font-weight:600;color:var(--b400);margin:34px 0 12px}
+.lede{max-width:64ch;color:var(--dim);margin:0 0 8px;font-size:16px}
+p{max-width:66ch}
+strong{color:var(--ink);font-weight:600}
+code{font-family:var(--mono);font-size:.85em;background:rgba(255,255,255,.06);
+  padding:1.5px 5px;border-radius:4px;color:var(--b300)}
+a{color:var(--b400)}
+hr.rule{border:0;border-top:1px solid var(--line);margin:44px 0 0}
+
+/* ---------- callout ---------- */
+.note{border-left:3px solid var(--b500);background:linear-gradient(90deg,rgba(0,144,255,.09),transparent 70%);
+  padding:13px 16px;margin:20px 0;border-radius:0 10px 10px 0;max-width:70ch}
+.note.warn{border-left-color:var(--g500);background:linear-gradient(90deg,rgba(255,194,51,.09),transparent 70%)}
+.note.stop{border-left-color:var(--bad);background:linear-gradient(90deg,rgba(255,71,99,.09),transparent 70%)}
+.note .lbl{font-family:var(--cond);text-transform:uppercase;letter-spacing:.15em;font-size:11px;
+  font-weight:700;color:var(--b400);display:block;margin-bottom:3px}
+.note.warn .lbl{color:var(--g400)} .note.stop .lbl{color:var(--bad)}
+.note p{margin:0;max-width:none;font-size:15px}
+
+/* ---------- swatches ---------- */
+.sw-row{margin:16px 0 6px}
+.sw-row .cap{font-family:var(--cond);text-transform:uppercase;letter-spacing:.13em;
+  font-size:11.5px;font-weight:600;color:var(--dim2);margin-bottom:7px}
+.sw{display:grid;grid-template-columns:repeat(auto-fill,minmax(108px,1fr));gap:8px}
+.chip{border-radius:10px;border:1px solid var(--line);overflow:hidden;background:var(--n800)}
+.chip .col{height:52px;display:block}
+.chip .txt{padding:7px 9px 8px}
+.chip .nm{font-family:var(--cond);text-transform:uppercase;letter-spacing:.09em;
+  font-size:11px;font-weight:600;color:var(--ink);line-height:1.15}
+.chip .hx{font-family:var(--mono);font-size:10.5px;color:var(--dim2);letter-spacing:.01em}
+
+/* ---------- tables ---------- */
+.tw{overflow-x:auto;margin:16px 0;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+table{width:100%;border-collapse:collapse;font-size:14.5px;min-width:440px}
+th{font-family:var(--cond);text-transform:uppercase;letter-spacing:.12em;font-size:11.5px;
+  font-weight:600;color:var(--dim2);text-align:left;padding:11px 14px;
+  border-bottom:1px solid var(--line2);white-space:nowrap}
+td{padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.05);vertical-align:top;color:var(--ink2)}
+tr:last-child td{border-bottom:0}
+td.n{font-family:var(--mono);font-size:13px;color:var(--b300);white-space:nowrap}
+td.k{font-family:var(--cond);text-transform:uppercase;letter-spacing:.06em;font-weight:600;
+  color:var(--ink);font-size:14.5px;white-space:nowrap}
+tr.hero td{background:rgba(255,194,51,.07)}
+tr.hero td.n{color:var(--g300)}
+
+/* ---------- figure ---------- */
+figure{margin:22px 0;padding:20px 18px 14px;border:1px solid var(--line);
+  border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.012))}
+figure svg{display:block;width:100%;height:auto;max-width:100%}
+figcaption{font-size:13.5px;color:var(--dim);margin-top:12px;padding-top:11px;
+  border-top:1px solid var(--line);max-width:none}
+.svg-lbl{font-family:"Barlow Condensed",sans-serif;font-size:11.5px;font-weight:600;
+  letter-spacing:.08em;text-transform:uppercase;fill:#8199b0}
+.svg-val{font-family:ui-monospace,Menlo,monospace;font-size:11px;fill:#7ccdff}
+.svg-gold{fill:#ffc233}
+.svg-hi{font-family:"Barlow Condensed",sans-serif;font-size:13px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;fill:#ffc233}
+
+/* ---------- lighting cards ---------- */
+.lights{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:12px;margin:18px 0}
+.lc{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--n800)}
+.lc .sky{height:76px;position:relative}
+.lc .sun{position:absolute;width:16px;height:16px;border-radius:50%;
+  background:radial-gradient(circle,#fff,rgba(255,255,255,.15) 62%,transparent 72%)}
+.lc .body{padding:11px 13px 13px}
+.lc .nm{font-family:var(--cond);text-transform:uppercase;letter-spacing:.1em;font-size:14px;
+  font-weight:700;color:var(--ink)}
+.lc .sub{font-family:var(--mono);font-size:10.5px;color:var(--dim2);margin-bottom:8px}
+.bars{display:grid;gap:4px}
+.bar{display:grid;grid-template-columns:52px 1fr 30px;align-items:center;gap:7px}
+.bar .bn{font-family:var(--cond);text-transform:uppercase;letter-spacing:.09em;
+  font-size:10px;color:var(--dim2)}
+.bar .tr{height:4px;border-radius:2px;background:rgba(255,255,255,.09);overflow:hidden}
+.bar .fl{height:100%;border-radius:2px;background:var(--b500)}
+.bar .fl.g{background:var(--g500)}
+.bar .bv{font-family:var(--mono);font-size:10px;color:var(--dim);text-align:right}
+
+/* ---------- clip timing ---------- */
+.clips{display:grid;gap:5px;margin:18px 0}
+.clip{display:grid;grid-template-columns:96px 1fr 52px 26px;align-items:center;gap:10px;
+  padding:5px 0;border-bottom:1px solid rgba(255,255,255,.045)}
+.clip .cn{font-family:var(--mono);font-size:12.5px;color:var(--ink)}
+.clip .ct{height:9px;border-radius:3px;background:rgba(255,255,255,.06);position:relative}
+.clip .cf{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--b600),var(--b400))}
+.clip .cf.act{background:linear-gradient(90deg,var(--g600),var(--g400))}
+.clip .cd{font-family:var(--mono);font-size:11.5px;color:var(--dim);text-align:right}
+.clip .cl{font-size:12px;color:var(--dim2);text-align:center}
+
+/* ---------- UI specimens ---------- */
+.spec{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;margin:18px 0}
+.sp{border:1px solid var(--line);border-radius:12px;padding:15px;background:var(--panel)}
+.sp .lb{font-family:var(--cond);text-transform:uppercase;letter-spacing:.14em;font-size:10.5px;
+  font-weight:600;color:var(--dim2);margin-bottom:11px}
+.btn-demo{height:56px;border-radius:16px;display:flex;align-items:center;justify-content:center;
+  font-family:var(--cond);text-transform:uppercase;letter-spacing:.1em;font-size:17px;font-weight:700;
+  color:#fff;background:linear-gradient(180deg,var(--b400),var(--b600));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.38),0 8px 22px rgba(0,105,217,.34)}
+.scorebug{display:flex;height:42px;border-radius:10px;overflow:hidden;border:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(16,41,63,.94),rgba(8,17,31,.96));
+  font-family:var(--cond);font-weight:700;align-items:stretch}
+.scorebug .bar4{width:4px;background:linear-gradient(180deg,var(--b400),var(--b600))}
+.scorebug .side{display:flex;align-items:center;padding:0 10px;font-size:13px;letter-spacing:.08em;color:var(--ink)}
+.scorebug .sc{display:flex;align-items:center;padding:0 11px;font-size:17px;color:var(--ink);
+  background:rgba(255,255,255,.055);border-left:1px solid var(--line);border-right:1px solid var(--line);
+  font-variant-numeric:tabular-nums}
+.scorebug .min{display:flex;align-items:center;padding:0 10px;font-size:10.5px;letter-spacing:.14em;color:var(--g400)}
+.ramp div{font-family:var(--cond);color:var(--ink);line-height:1.28}
+.ramp span{font-family:var(--mono);font-size:10px;color:var(--dim2);margin-left:8px;letter-spacing:0}
+.scale{display:flex;align-items:flex-end;gap:6px;height:52px}
+.scale i{background:linear-gradient(180deg,var(--b400),var(--b600));border-radius:3px 3px 0 0;flex:1;
+  position:relative;display:block}
+.scale em{font-family:var(--mono);font-size:9.5px;color:var(--dim2);font-style:normal;
+  position:absolute;bottom:-15px;left:50%;transform:translateX(-50%)}
+
+/* ---------- prompts ---------- */
+.pgrid{display:grid;gap:13px;margin:18px 0}
+.pr{border:1px solid var(--line);border-radius:13px;background:var(--panel);overflow:hidden}
+.pr .ph{display:flex;align-items:center;gap:10px;padding:10px 15px;border-bottom:1px solid var(--line);
+  background:rgba(255,255,255,.028)}
+.pr .pn{font-family:var(--mono);font-size:11.5px;color:var(--g400)}
+.pr .pt{font-family:var(--cond);text-transform:uppercase;letter-spacing:.1em;font-size:14px;
+  font-weight:700;color:var(--ink)}
+.pr .pb{padding:14px 15px;font-size:14.5px;line-height:1.6;color:var(--ink2)}
+.pr .pb b{color:var(--g300);font-weight:600}
+.shared{border:1px dashed var(--line2);border-radius:13px;padding:15px;margin:18px 0;background:rgba(0,144,255,.045)}
+.shared .lb{font-family:var(--cond);text-transform:uppercase;letter-spacing:.14em;font-size:11px;
+  font-weight:700;color:var(--b400);margin-bottom:7px}
+.shared code{display:block;background:rgba(0,0,0,.3);padding:10px 12px;border-radius:8px;
+  font-size:12.5px;line-height:1.6;color:var(--ink2);white-space:pre-wrap;margin-top:4px}
+.shared .lb.neg{color:var(--bad)}
+
+ul{max-width:66ch;padding-left:20px}
+li{margin-bottom:6px}
+li::marker{color:var(--b500)}
+ol{max-width:66ch;padding-left:20px}
+ol li::marker{color:var(--g500);font-family:var(--cond);font-weight:700}
+footer{margin-top:64px;padding-top:26px;border-top:1px solid var(--line);
+  font-size:13.5px;color:var(--dim2)}
+@media(max-width:560px){
+  .clip{grid-template-columns:80px 1fr 46px 22px;gap:7px}
+  .bar{grid-template-columns:44px 1fr 26px}
+}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header class="mast">
+  <div class="eyebrow">Art direction · design bible · v1</div>
+  <h1>goal.io<br><span class="thin">art style guide</span></h1>
+  <p class="standfirst">Televised football, seen from the shooter's shoulder, on a phone held in
+  one hand. Broadcast framing and broadcast colour — but every read has to survive at 90 pixels tall.</p>
+  <div class="meta">
+    <span class="tag live">● Live values from the code</span>
+    <span class="tag tgt">◆ Target = not built yet</span>
+    <span class="tag">Score! Hero lineage</span>
+    <span class="tag">Portrait PWA · WebGL2</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#brief"><b>00</b>Brief</a>
+  <a href="#colour"><b>01</b>Colour</a>
+  <a href="#figure"><b>02</b>Proportions</a>
+  <a href="#stadium"><b>03</b>Stadium</a>
+  <a href="#light"><b>04</b>Lighting</a>
+  <a href="#camera"><b>05</b>Camera</a>
+  <a href="#anim"><b>06</b>Animation</a>
+  <a href="#ui"><b>07</b>UI</a>
+  <a href="#prompts"><b>08</b>Image prompts</a>
+</nav>
+
+<!-- ============ 00 ============ -->
+<section id="brief">
+  <h2><span class="num">00</span>The brief</h2>
+  <p class="lede">Score! Hero is the reference for legibility and pace — not for its flat-shaded
+  look. goal.io is lit, has a real shadow map and a full post chain, and should read a generation newer.</p>
+  <div class="note stop">
+    <span class="lbl">The failure mode this document exists to prevent</span>
+    <p><strong>Arcade drift</strong> — saturated traffic-light green, rubber-toy players, a stadium
+    made of coloured rectangles. It has already happened once: mint-green turf was the single
+    strongest arcade tell in the frame, and the fix is recorded in the comment above
+    <code>COL.grass1</code>.</p>
+  </div>
+  <p>Three constraints govern every decision below, and they are worth stating before any of the
+  numbers. <strong>The player is 90 pixels tall</strong> at gameplay distance, so nothing narrower
+  than three pixels may carry meaning. <strong>The frame is portrait</strong>, which makes the
+  camera wide vertically and long-lens horizontally. And <strong>the simulation never reads the
+  renderer</strong> — art can be changed freely without touching balance.</p>
+</section>
+
+<hr class="rule">
+
+<!-- ============ 01 ============ -->
+<section id="colour">
+  <h2><span class="num">01</span>Colour</h2>
+  <p class="lede">The interface owns exactly three hues. No fourth is ever introduced.</p>
+
+  <div class="tw"><table>
+    <tr><th>Role</th><th>Hue</th><th>Where it may appear</th></tr>
+    <tr><td class="k">Surface</td><td class="k" style="color:#7ccdff">Deep navy</td><td>Every panel, card, bar, overlay, letterbox</td></tr>
+    <tr><td class="k">Action</td><td class="k" style="color:#38b0ff">Electric blue</td><td>Anything the thumb can touch — and only that</td></tr>
+    <tr><td class="k">Reward</td><td class="k" style="color:#ffc233">Gold</td><td>Stars, XP, level-ups, the minute clock. Nothing else</td></tr>
+  </table></div>
+
+  <p>Green belongs to the pitch. It appears in the UI only as <code>--good</code> and only as a
+  <em>state</em> — a tick, a positive delta — never as a surface, never as a button. If a new accent
+  seems necessary, the answer is a value change inside an existing hue, not a new hue.</p>
+
+  <h3>Interface palette · <code>config/ui.json</code></h3>
+  <div class="sw-row"><div class="cap">Surface — navy ramp</div><div class="sw">
+    <div class="chip"><span class="col" style="background:#050b16"></span><span class="txt"><span class="nm">n900</span><br><span class="hx">#050b16</span></span></div>
+    <div class="chip"><span class="col" style="background:#08111f"></span><span class="txt"><span class="nm">n800</span><br><span class="hx">#08111f</span></span></div>
+    <div class="chip"><span class="col" style="background:#0b1728"></span><span class="txt"><span class="nm">n700</span><br><span class="hx">#0b1728</span></span></div>
+    <div class="chip"><span class="col" style="background:#101f34"></span><span class="txt"><span class="nm">n600</span><br><span class="hx">#101f34</span></span></div>
+    <div class="chip"><span class="col" style="background:#16293f"></span><span class="txt"><span class="nm">n500</span><br><span class="hx">#16293f</span></span></div>
+    <div class="chip"><span class="col" style="background:#1e344c"></span><span class="txt"><span class="nm">n400</span><br><span class="hx">#1e344c</span></span></div>
+    <div class="chip"><span class="col" style="background:#2a4359"></span><span class="txt"><span class="nm">n300</span><br><span class="hx">#2a4359</span></span></div>
+  </div></div>
+  <div class="sw-row"><div class="cap">Action — electric blue</div><div class="sw">
+    <div class="chip"><span class="col" style="background:#0069d9"></span><span class="txt"><span class="nm">b600</span><br><span class="hx">#0069d9</span></span></div>
+    <div class="chip"><span class="col" style="background:#0090ff"></span><span class="txt"><span class="nm">b500</span><br><span class="hx">#0090ff</span></span></div>
+    <div class="chip"><span class="col" style="background:#38b0ff"></span><span class="txt"><span class="nm">b400</span><br><span class="hx">#38b0ff</span></span></div>
+    <div class="chip"><span class="col" style="background:#7ccdff"></span><span class="txt"><span class="nm">b300</span><br><span class="hx">#7ccdff</span></span></div>
+  </div></div>
+  <div class="sw-row"><div class="cap">Reward — gold</div><div class="sw">
+    <div class="chip"><span class="col" style="background:#c98a0a"></span><span class="txt"><span class="nm">g600</span><br><span class="hx">#c98a0a</span></span></div>
+    <div class="chip"><span class="col" style="background:#f0a91b"></span><span class="txt"><span class="nm">g500</span><br><span class="hx">#f0a91b</span></span></div>
+    <div class="chip"><span class="col" style="background:#ffc233"></span><span class="txt"><span class="nm">g400</span><br><span class="hx">#ffc233</span></span></div>
+    <div class="chip"><span class="col" style="background:#ffd970"></span><span class="txt"><span class="nm">g300</span><br><span class="hx">#ffd970</span></span></div>
+  </div></div>
+  <div class="sw-row"><div class="cap">Ink &amp; state</div><div class="sw">
+    <div class="chip"><span class="col" style="background:#f2f7fc"></span><span class="txt"><span class="nm">ink</span><br><span class="hx">#f2f7fc</span></span></div>
+    <div class="chip"><span class="col" style="background:#c3d2e0"></span><span class="txt"><span class="nm">ink2</span><br><span class="hx">#c3d2e0</span></span></div>
+    <div class="chip"><span class="col" style="background:#8199b0"></span><span class="txt"><span class="nm">dim</span><br><span class="hx">#8199b0</span></span></div>
+    <div class="chip"><span class="col" style="background:#5a7189"></span><span class="txt"><span class="nm">dim2</span><br><span class="hx">#5a7189</span></span></div>
+    <div class="chip"><span class="col" style="background:#ff4763"></span><span class="txt"><span class="nm">bad</span><br><span class="hx">#ff4763</span></span></div>
+    <div class="chip"><span class="col" style="background:#25d97a"></span><span class="txt"><span class="nm">good</span><br><span class="hx">#25d97a</span></span></div>
+  </div></div>
+
+  <div class="note"><span class="lbl">Never pure black, never pure white</span>
+  <p><code>n900</code> is a cool navy, not <code>#000</code>. <code>ink</code> is a cool off-white,
+  not <code>#fff</code>. Pure black on an OLED phone kills the sense that the panel is glass sitting
+  over a lit scene — which is the entire premise of the HUD.</p></div>
+
+  <h3>World palette · <code>js/render.js</code></h3>
+  <div class="sw-row"><div class="cap">Turf, lines, structure</div><div class="sw">
+    <div class="chip"><span class="col" style="background:#43a259"></span><span class="txt"><span class="nm">grass 1</span><br><span class="hx">#43a259</span></span></div>
+    <div class="chip"><span class="col" style="background:#2f7f45"></span><span class="txt"><span class="nm">grass 2</span><br><span class="hx">#2f7f45</span></span></div>
+    <div class="chip"><span class="col" style="background:#51b166"></span><span class="txt"><span class="nm">grass 1 lit</span><br><span class="hx">#51b166</span></span></div>
+    <div class="chip"><span class="col" style="background:#388c4e"></span><span class="txt"><span class="nm">grass 2 lit</span><br><span class="hx">#388c4e</span></span></div>
+    <div class="chip"><span class="col" style="background:#20262e"></span><span class="txt"><span class="nm">concrete</span><br><span class="hx">#20262e</span></span></div>
+    <div class="chip"><span class="col" style="background:#f4f7fa"></span><span class="txt"><span class="nm">ad board</span><br><span class="hx">#f4f7fa</span></span></div>
+  </div></div>
+  <p>The two mow directions need real separation or the stripes vanish once depth haze lifts the far
+  end. A stripe on a nearly-clipped green has no headroom to be lighter in — which is exactly why
+  the base greens are deliberately dark and cool.</p>
+
+  <div class="sw-row"><div class="cap">Kits — one-colour shirts, white trim</div><div class="sw">
+    <div class="chip"><span class="col" style="background:#d8324a"></span><span class="txt"><span class="nm">Home shirt</span><br><span class="hx">#d8324a</span></span></div>
+    <div class="chip"><span class="col" style="background:#f0f4f8"></span><span class="txt"><span class="nm">Home shorts</span><br><span class="hx">#f0f4f8</span></span></div>
+    <div class="chip"><span class="col" style="background:#5566d8"></span><span class="txt"><span class="nm">Away shirt</span><br><span class="hx">#5566d8</span></span></div>
+    <div class="chip"><span class="col" style="background:#2b3492"></span><span class="txt"><span class="nm">Away shorts</span><br><span class="hx">#2b3492</span></span></div>
+    <div class="chip"><span class="col" style="background:#25b596"></span><span class="txt"><span class="nm">Keeper</span><br><span class="hx">#25b596</span></span></div>
+    <div class="chip"><span class="col" style="background:#12705c"></span><span class="txt"><span class="nm">Keeper alt</span><br><span class="hx">#12705c</span></span></div>
+  </div></div>
+  <div class="note warn"><span class="lbl">Halves, quarters and hoops are banned</span>
+  <p>A white torso between two red sleeves read as a sheet of paper taped to the player — a
+  high-contrast block boundary running straight down the silhouette with no shading across it. A
+  single-colour shirt has no such boundary, and lets the white shorts break the silhouette at the
+  waist instead. This stands until the renderer can shade across a block boundary convincingly.</p></div>
+
+  <div class="sw-row"><div class="cap">Skin ramp — five tones, assigned by squad number</div><div class="sw">
+    <div class="chip"><span class="col" style="background:#f0c9a4"></span><span class="txt"><span class="hx">#f0c9a4</span></span></div>
+    <div class="chip"><span class="col" style="background:#dda87c"></span><span class="txt"><span class="hx">#dda87c</span></span></div>
+    <div class="chip"><span class="col" style="background:#c08a5c"></span><span class="txt"><span class="hx">#c08a5c</span></span></div>
+    <div class="chip"><span class="col" style="background:#96613c"></span><span class="txt"><span class="hx">#96613c</span></span></div>
+    <div class="chip"><span class="col" style="background:#6d4227"></span><span class="txt"><span class="hx">#6d4227</span></span></div>
+  </div></div>
+  <div class="sw-row"><div class="cap">Boot flash — modern boots are never black</div><div class="sw">
+    <div class="chip"><span class="col" style="background:#00e5a0"></span><span class="txt"><span class="hx">#00e5a0</span></span></div>
+    <div class="chip"><span class="col" style="background:#ff2e93"></span><span class="txt"><span class="hx">#ff2e93</span></span></div>
+    <div class="chip"><span class="col" style="background:#ffc233"></span><span class="txt"><span class="hx">#ffc233</span></span></div>
+    <div class="chip"><span class="col" style="background:#38b0ff"></span><span class="txt"><span class="hx">#38b0ff</span></span></div>
+    <div class="chip"><span class="col" style="background:#f2f5f8"></span><span class="txt"><span class="hx">#f2f5f8</span></span></div>
+    <div class="chip"><span class="col" style="background:#ff6a2b"></span><span class="txt"><span class="hx">#ff6a2b</span></span></div>
+  </div></div>
+
+  <h3>The saturation hierarchy — the rule that actually matters</h3>
+  <div class="tw"><table>
+    <tr><th>Layer</th><th>Saturation</th><th>Why</th></tr>
+    <tr><td class="k">UI action</td><td class="n">~100%</td><td>Must win against a lit 3D scene behind glass</td></tr>
+    <tr><td class="k">Kits</td><td class="n">62–68%</td><td>The players are the subject</td></tr>
+    <tr><td class="k">Turf</td><td class="n">~41%</td><td>The ground is a backdrop, not a character</td></tr>
+    <tr><td class="k">Crowd</td><td class="n">20–45%</td><td>Mass, never individual reads</td></tr>
+  </table></div>
+  <p><strong>Saturation descends with distance from the ball.</strong> If a new element does not fit
+  this ladder it is the wrong colour — including a "nicer", greener pitch.</p>
+</section>
+
+<hr class="rule">
+
+<!-- ============ 02 ============ -->
+<section id="figure">
+  <h2><span class="num">02</span>Character proportions</h2>
+  <p class="lede">Seventeen bones. No fingers, no toes, no twist bones, no facial rig. Anything that
+  needs an eighteenth bone is out of scope.</p>
+
+  <figure>
+    <svg viewBox="0 0 460 470" role="img" aria-label="Skeleton elevation with joint heights in metres and a seven-point-two head unit ruler">
+      <defs>
+        <linearGradient id="gnd" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#43a259" stop-opacity=".26"/>
+          <stop offset="1" stop-color="#43a259" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <!-- ground -->
+      <rect x="0" y="420" width="460" height="34" fill="url(#gnd)"/>
+      <line x1="0" y1="420" x2="460" y2="420" stroke="#43a259" stroke-width="1.4"/>
+      <!-- head unit ruler -->
+      <g>
+        <line x1="52" y1="60" x2="52" y2="420" stroke="#2a4359" stroke-width="1"/>
+        <g stroke="#2a4359" stroke-width="1" stroke-dasharray="2 4">
+          <line x1="52" y1="370" x2="150" y2="370"/><line x1="52" y1="320" x2="150" y2="320"/>
+          <line x1="52" y1="270" x2="150" y2="270"/><line x1="52" y1="220" x2="150" y2="220"/>
+          <line x1="52" y1="170" x2="150" y2="170"/><line x1="52" y1="120" x2="150" y2="120"/>
+          <line x1="52" y1="70"  x2="150" y2="70"/>
+        </g>
+        <g class="svg-val" text-anchor="end" fill="#5a7189">
+          <text x="46" y="424">0</text><text x="46" y="374">1</text><text x="46" y="324">2</text>
+          <text x="46" y="274">3</text><text x="46" y="224">4</text><text x="46" y="174">5</text>
+          <text x="46" y="124">6</text><text x="46" y="74">7</text>
+        </g>
+        <text class="svg-lbl" x="14" y="248" transform="rotate(-90 14 248)" text-anchor="middle">Head units</text>
+        <rect x="46" y="60" width="12" height="360" fill="#ffc233" opacity=".07"/>
+      </g>
+
+      <!-- silhouette mass -->
+      <g fill="#38b0ff" opacity=".10">
+        <path d="M210 62 c14 0 22 10 22 24 c0 16 -9 26 -22 26 c-13 0 -22 -10 -22 -26 c0 -14 8 -24 22 -24 z"/>
+        <path d="M186 140 c0 -14 10 -24 24 -24 c14 0 24 10 24 24 l6 60 c2 18 -6 32 -6 46 l-48 0 c0 -14 -8 -28 -6 -46 z"/>
+        <path d="M188 246 l44 0 l6 90 l-8 86 l-16 0 l-2 -80 l-4 0 l-2 80 l-16 0 l-8 -86 z"/>
+        <path d="M164 142 l10 0 l6 58 l4 50 l-11 2 l-8 -52 z"/>
+        <path d="M246 142 l10 0 l8 58 l-8 52 l-11 -2 l4 -50 z"/>
+      </g>
+
+      <!-- bones -->
+      <g stroke="#7ccdff" stroke-width="2" stroke-linecap="round" fill="none" opacity=".85">
+        <line x1="210" y1="244" x2="210" y2="212"/>
+        <line x1="210" y1="212" x2="210" y2="156"/>
+        <line x1="210" y1="156" x2="210" y2="132"/>
+        <line x1="210" y1="132" x2="210" y2="110"/>
+        <line x1="164.4" y1="144" x2="255.6" y2="144"/>
+        <line x1="164.4" y1="144" x2="164.4" y2="196"/>
+        <line x1="164.4" y1="196" x2="164.4" y2="246"/>
+        <line x1="255.6" y1="144" x2="255.6" y2="196"/>
+        <line x1="255.6" y1="196" x2="255.6" y2="246"/>
+        <line x1="191" y1="256" x2="229" y2="256"/>
+        <line x1="191" y1="256" x2="191" y2="340"/>
+        <line x1="191" y1="340" x2="191" y2="420"/>
+        <line x1="229" y1="256" x2="229" y2="340"/>
+        <line x1="229" y1="340" x2="229" y2="420"/>
+      </g>
+      <circle cx="210" cy="86" r="25" fill="none" stroke="#7ccdff" stroke-width="2" opacity=".85"/>
+      <!-- joints -->
+      <g fill="#0b1728" stroke="#ffc233" stroke-width="1.8">
+        <circle cx="210" cy="244" r="4.2"/><circle cx="210" cy="212" r="3.4"/>
+        <circle cx="210" cy="156" r="3.4"/><circle cx="210" cy="132" r="3.4"/>
+        <circle cx="210" cy="110" r="3.4"/>
+        <circle cx="164.4" cy="144" r="3.4"/><circle cx="255.6" cy="144" r="3.4"/>
+        <circle cx="164.4" cy="196" r="3"/><circle cx="255.6" cy="196" r="3"/>
+        <circle cx="164.4" cy="246" r="3"/><circle cx="255.6" cy="246" r="3"/>
+        <circle cx="191" cy="256" r="3.4"/><circle cx="229" cy="256" r="3.4"/>
+        <circle cx="191" cy="340" r="3"/><circle cx="229" cy="340" r="3"/>
+        <circle cx="191" cy="420" r="3"/><circle cx="229" cy="420" r="3"/>
+      </g>
+
+      <!-- right-hand callouts -->
+      <g stroke="#2a4359" stroke-width="1">
+        <line x1="285" y1="60" x2="330" y2="60"/><line x1="266" y1="110" x2="330" y2="110"/>
+        <line x1="266" y1="144" x2="330" y2="144"/><line x1="222" y1="244" x2="330" y2="244"/>
+        <line x1="240" y1="340" x2="330" y2="340"/><line x1="240" y1="420" x2="330" y2="420"/>
+      </g>
+      <g class="svg-lbl" fill="#c3d2e0"><text x="336" y="57">Crown</text><text x="336" y="107">Head joint</text>
+        <text x="336" y="141">Shoulder</text><text x="336" y="241">Pelvis · root</text>
+        <text x="336" y="337">Knee</text><text x="336" y="417">Ankle</text></g>
+      <g class="svg-val"><text x="336" y="70">1.80 m</text><text x="336" y="120">1.55 m</text>
+        <text x="336" y="154">1.38 m</text><text x="336" y="254">0.88 m</text>
+        <text x="336" y="350">0.40 m</text><text x="336" y="430">0.00 m</text></g>
+
+      <!-- widths -->
+      <g stroke="#ffc233" stroke-width="1.2" opacity=".75">
+        <line x1="164.4" y1="126" x2="255.6" y2="126"/>
+        <line x1="164.4" y1="122" x2="164.4" y2="130"/><line x1="255.6" y1="122" x2="255.6" y2="130"/>
+        <line x1="191" y1="274" x2="229" y2="274"/>
+        <line x1="191" y1="270" x2="191" y2="278"/><line x1="229" y1="270" x2="229" y2="278"/>
+      </g>
+      <text class="svg-val svg-gold" x="210" y="118" text-anchor="middle">0.456 m</text>
+      <text class="svg-val svg-gold" x="210" y="288" text-anchor="middle">0.190 m</text>
+      <text class="svg-hi" x="76" y="46">7.2 heads · 1.80 m</text>
+    </svg>
+    <figcaption><strong>The canonical skeleton</strong>, live in <code>js/anim.js</code>. Ground plane
+    <code>z&nbsp;=&nbsp;0</code>, <code>x</code> right, <code>y</code> forward, <code>z</code> up.
+    Head unit 0.25&nbsp;m. Shoulder-to-hip joint ratio 2.40&nbsp;:&nbsp;1 — roughly 1.72&nbsp;:&nbsp;1
+    once limb mass is added, which is the taper that reads at distance.</figcaption>
+  </figure>
+
+  <h3>The locked ratios</h3>
+  <div class="tw"><table>
+    <tr><th>Ratio</th><th>Value</th><th>Note</th></tr>
+    <tr class="hero"><td class="k">Height in heads</td><td class="n">7.2</td><td>Head unit 0.25 m, crown 1.80 m</td></tr>
+    <tr><td class="k">Leg ÷ height</td><td class="n">0.456</td><td>Real athletes ≈0.47 — shortened slightly for on-screen stability</td></tr>
+    <tr><td class="k">Shoulder ÷ hip (joints)</td><td class="n">2.40</td><td>0.456 m against 0.190 m</td></tr>
+    <tr><td class="k">Shoulder ÷ hip (silhouette)</td><td class="n">≈1.72</td><td>With limb mass — the read at 90 px</td></tr>
+    <tr><td class="k">Arm ÷ leg</td><td class="n">0.62</td><td>0.51 m against 0.82 m</td></tr>
+    <tr><td class="k">Hand diameter</td><td class="n">0.114 m</td><td>0.46 head units — undersized on purpose</td></tr>
+    <tr><td class="k">Boot capsule</td><td class="n">0.074→0.128</td><td>Tapered, with a sole inset</td></tr>
+  </table></div>
+
+  <div class="note warn"><span class="lbl">7.2 heads is the whole call</span>
+  <p>Life is 7.5–8. Score! Hero sits near 7. Chibi sits at 4–5. At 7.2 the head is about 4% larger
+  than life — enough to carry a face at phone scale without reading as a caricature, which is why
+  these players look like athletes rather than mascots. <strong>Do not "fix" it toward
+  realism.</strong></p></div>
+
+  <p>Hands are volume markers, not hands. At gameplay scale a correctly-sized hand is three pixels
+  of noise; a slightly small sphere reads as a closed fist, which is what a running footballer has
+  anyway.</p>
+
+  <h3>The 90-pixel constraint</h3>
+  <p>At gameplay distance a player is <strong>≈90&nbsp;px tall</strong>. The head is ≈12&nbsp;px and
+  any facial feature 2–4&nbsp;px. Four consequences, all mandatory:</p>
+  <ol>
+    <li><strong>No feature narrower than 3&nbsp;px may carry meaning.</strong> Eyes, brows and mouth
+    are <em>value blocks</em>, not lines. They exist for the celebration and replay cameras; at
+    gameplay they only need to darken the right region of the head.</li>
+    <li><strong>The read is silhouette plus two values</strong> — shirt against turf, shorts against
+    shirt. Everything else is decoration.</li>
+    <li><strong>The waist break is load-bearing.</strong> White shorts cut the figure at 0.88&nbsp;m,
+    and that horizontal is what stops the player reading as a coloured stick.</li>
+    <li><strong>Hair is a silhouette element, not a texture.</strong> Four styles, distinguished by
+    outline shape at 12&nbsp;px, never by strand detail.</li>
+  </ol>
+
+  <h3>Variation budget — derived from the squad number, deterministically</h3>
+  <div class="tw"><table>
+    <tr><th>Axis</th><th>Count</th><th>Range</th></tr>
+    <tr><td class="k">Skin tone</td><td class="n">5</td><td>The ramp above</td></tr>
+    <tr><td class="k">Hairstyle</td><td class="n">4</td><td>Silhouette-distinct at 12 px</td></tr>
+    <tr><td class="k">Build</td><td class="n">continuous</td><td>±6% on chest and thigh radius</td></tr>
+    <tr><td class="k">Brow / jaw / eye</td><td class="n">continuous</td><td>Small — for close cameras only</td></tr>
+    <tr><td class="k">Boot flash</td><td class="n">6</td><td>The flash palette above</td></tr>
+    <tr><td class="k">Idle phase offset</td><td class="n">continuous</td><td>So a group never breathes in unison</td></tr>
+  </table></div>
+
+  <div class="note"><span class="lbl">◆ Target — known geometry debt</span>
+  <p>The near shoulder cap stands slightly proud of the deltoid; hands are barely visible with the
+  arms down; there is a faint seam at the knee past ~0.6&nbsp;rad because the thigh inside the shorts
+  is deliberately not built. All three are visible only in close cameras and store screenshots —
+  worth fixing before any marketing capture, and not before.</p></div>
+</section>
+
+<hr class="rule">
+
+<!-- ============ 03 ============ -->
+<section id="stadium">
+  <h2><span class="num">03</span>Stadium</h2>
+  <p class="lede">A modern ~25,000-seat English club ground, not a superstadium. One continuous bowl
+  with generously rounded corners — never four separate stands.</p>
+
+  <figure>
+    <svg viewBox="0 0 620 268" role="img" aria-label="Section through the stadium bowl showing the rake, roof and pitch">
+      <defs>
+        <linearGradient id="skyS" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#1f4f78" stop-opacity=".5"/><stop offset="1" stop-color="#77b1cf" stop-opacity=".08"/>
+        </linearGradient>
+      </defs>
+      <rect x="0" y="0" width="620" height="212" fill="url(#skyS)"/>
+      <!-- pitch -->
+      <line x1="18" y1="212" x2="142" y2="212" stroke="#43a259" stroke-width="5"/>
+      <line x1="142" y1="212" x2="159" y2="212" stroke="#2f7f45" stroke-width="5"/>
+      <!-- perimeter wall -->
+      <rect x="155" y="201" width="8" height="11" fill="#20262e" stroke="#2a4359" stroke-width="1"/>
+      <!-- rake steps -->
+      <path d="M159 201 L164.9 201 L164.9 197.8 L170.8 197.8 L170.8 194.6 L176.7 194.6 L176.7 191.4
+               L182.6 191.4 L182.6 188.2 L188.5 188.2 L188.5 185 L194.4 185 L194.4 181.8 L200.3 181.8
+               L200.3 178.6 L206.2 178.6 L206.2 175.4 L212.1 175.4 L212.1 172.2 L218 172.2 L218 169
+               L223.9 169 L223.9 165.8 L229.8 165.8 L229.8 162.6 L235.7 162.6 L235.7 159.4 L241.6 159.4
+               L241.6 156.2 L247.5 156.2 L247.5 153 L253.4 153 L253.4 149.8 L259.3 149.8 L259.3 146.6
+               L265.2 146.6 L265.2 143.4 L271.1 143.4 L271.1 140.2 L277 140.2 L277 137 L282.9 137
+               L282.9 133.8 L288.8 133.8 L288.8 130.6 L294.7 130.6 L294.7 127.4 L300.6 127.4
+               L300.6 124.2 L306.5 124.2 L306.5 121 L312.4 121 L312.4 117 L318 117 L318 212 L159 212 Z"
+            fill="#16293f" stroke="#38b0ff" stroke-width="1.3" stroke-linejoin="round"/>
+      <!-- crowd speckle -->
+      <g opacity=".55">
+        <g fill="#d9ab80"><circle cx="176" cy="190" r="1.6"/><circle cx="206" cy="174" r="1.6"/><circle cx="248" cy="152" r="1.6"/><circle cx="290" cy="130" r="1.6"/></g>
+        <g fill="#f3ece1"><circle cx="188" cy="184" r="1.6"/><circle cx="230" cy="162" r="1.6"/><circle cx="272" cy="139" r="1.6"/><circle cx="302" cy="123" r="1.6"/></g>
+        <g fill="#c33b2e"><circle cx="200" cy="177" r="1.6"/><circle cx="242" cy="155" r="1.6"/><circle cx="284" cy="133" r="1.6"/></g>
+        <g fill="#3a4170"><circle cx="218" cy="168" r="1.6"/><circle cx="260" cy="146" r="1.6"/><circle cx="308" cy="120" r="1.6"/></g>
+      </g>
+      <!-- roof -->
+      <path d="M207 92 L318 92 L318 100 L207 99 Z" fill="#20262e" stroke="#8199b0" stroke-width="1.2"/>
+      <line x1="318" y1="100" x2="318" y2="117" stroke="#8199b0" stroke-width="1.6"/>
+      <line x1="207" y1="99" x2="252" y2="117" stroke="#8199b0" stroke-width="1" opacity=".55"/>
+      <line x1="240" y1="97" x2="280" y2="117" stroke="#8199b0" stroke-width="1" opacity=".55"/>
+      <!-- shadow ray -->
+      <line x1="207" y1="96" x2="60" y2="212" stroke="#ffc233" stroke-width="1.4" stroke-dasharray="5 4"/>
+      <text class="svg-hi" x="66" y="204">9° roof-lip shadow</text>
+      <!-- dims -->
+      <g stroke="#5a7189" stroke-width="1">
+        <line x1="330" y1="117" x2="392" y2="117"/><line x1="330" y1="92" x2="392" y2="92"/>
+        <line x1="330" y1="201" x2="392" y2="201"/><line x1="330" y1="212" x2="392" y2="212"/>
+      </g>
+      <g class="svg-lbl" fill="#c3d2e0"><text x="398" y="95">Roof</text><text x="398" y="120">Back row</text>
+        <text x="398" y="204">Wall top</text><text x="398" y="215">Pitch</text></g>
+      <g class="svg-val"><text x="470" y="95">16.8 m</text><text x="470" y="120">13.2 m</text>
+        <text x="470" y="204">1.25 m</text><text x="470" y="215">0.00 m</text></g>
+      <text class="svg-lbl" x="230" y="240" fill="#8199b0">26 rows · rise 0.46 / run 0.84</text>
+      <text class="svg-hi" x="230" y="256">Rake 28.7°</text>
+      <text class="svg-lbl" x="30" y="240" fill="#8199b0">Pitch</text>
+      <text class="svg-val" x="30" y="256">68 × 105 m</text>
+    </svg>
+    <figcaption><strong>Section through the bowl</strong>, generated from
+    <code>config/pitch.json</code> — move a pitch dimension and the whole stadium moves.
+    The 15&nbsp;m roof overhang and the 16.8&nbsp;m lip exist to throw a shadow edge across the grass
+    at low sun. <strong>The roof is lighting geometry, not decoration.</strong></figcaption>
+  </figure>
+
+  <div class="tw"><table>
+    <tr><th>Parameter</th><th>Value</th><th>Derived</th></tr>
+    <tr><td class="k">Pitch</td><td class="n">68 × 105 m</td><td><code>config/pitch.json</code></td></tr>
+    <tr><td class="k">Grass surround</td><td class="n">6.0 m</td><td>Then the ad boards</td></tr>
+    <tr><td class="k">Bowl half-width</td><td class="n">42.4 m</td><td>34 + 6 + 2.4</td></tr>
+    <tr><td class="k">Bowl half-length</td><td class="n">60.9 m</td><td>52.5 + 6 + 2.4</td></tr>
+    <tr><td class="k">Corner radius</td><td class="n">20 m</td><td>Generous — reads as one bowl</td></tr>
+    <tr class="hero"><td class="k">Rake</td><td class="n">28.7°</td><td>26 rows, rise 0.46 / run 0.84</td></tr>
+    <tr><td class="k">Roof lift</td><td class="n">3.6 m</td><td>Above the back row → 16.8 m</td></tr>
+    <tr><td class="k">Roof overhang</td><td class="n">15.0 m</td><td>Forward over the rake</td></tr>
+  </table></div>
+
+  <div class="note"><span class="lbl">The rake is built as real steps</span>
+  <p>A smooth ramp with treads painted on reads correctly from the front and falls apart in
+  silhouette at the top edge — which is exactly where the crowd meets the sky, and exactly where the
+  eye actually goes.</p></div>
+
+  <p><strong>Crowd:</strong> 18,000 individual spectators, pre-sorted by colour for draw cost and
+  stride-thinned with distance. <strong>Mass, never individuals</strong> — no spectator may be
+  identifiable, no faces, low saturation. The crowd is the dominant frame cost, so any new crowd
+  feature is measured before it is kept.</p>
+
+  <div class="note warn"><span class="lbl">◆ Target — the #1 open visual item</span>
+  <p><strong>The GL bowl is one tier.</strong> The canvas renderer has two tiers plus a facia with
+  banners and is still architecturally richer — the last place the old renderer wins. Target: a
+  second tier above a facia band at ~7&nbsp;m, the facia carrying club banners and a scoreboard.</p></div>
+</section>
+
+<hr class="rule">
+
+<!-- ============ 04 ============ -->
+<section id="light">
+  <h2><span class="num">04</span>Lighting</h2>
+  <p class="lede">One key, one broad ambient probe tinted toward the sky, and a floodlight
+  contribution that rises as the sun falls.</p>
+
+  <p>Post chain, in order: SSAO → bloom → depth of field → reprojected motion blur → highlight
+  shoulder → grading → vignette → grain. A separate ambient-occlusion contact pool sits under each
+  figure and is graded independently of the cast shadow, because a contact shadow and a cast shadow
+  behave nothing alike.</p>
+
+  <div class="lights">
+    <div class="lc"><div class="sky" style="background:linear-gradient(180deg,#1f4f78,#77b1cf 55%,#e2edee)">
+      <span class="sun" style="right:20%;top:14%"></span></div>
+      <div class="body"><div class="nm">Afternoon</div><div class="sub">sun 40° / az 128°</div>
+      <div class="bars">
+        <div class="bar"><span class="bn">Light</span><span class="tr"><span class="fl" style="width:100%"></span></span><span class="bv">1.00</span></div>
+        <div class="bar"><span class="bn">Warm</span><span class="tr"><span class="fl g" style="width:55%"></span></span><span class="bv">.55</span></div>
+        <div class="bar"><span class="bn">Flood</span><span class="tr"><span class="fl" style="width:10%"></span></span><span class="bv">.10</span></div>
+        <div class="bar"><span class="bn">Haze</span><span class="tr"><span class="fl" style="width:57%"></span></span><span class="bv">1.00</span></div>
+      </div></div></div>
+
+    <div class="lc" style="outline:1px solid rgba(255,194,51,.4)">
+      <div class="sky" style="background:linear-gradient(180deg,#243f6b,#b3763f 58%,#f5cf9a)">
+      <span class="sun" style="right:24%;top:62%"></span></div>
+      <div class="body"><div class="nm" style="color:#ffc233">Golden hour ★</div><div class="sub">sun 9° / az 105°</div>
+      <div class="bars">
+        <div class="bar"><span class="bn">Light</span><span class="tr"><span class="fl" style="width:96%"></span></span><span class="bv">.96</span></div>
+        <div class="bar"><span class="bn">Warm</span><span class="tr"><span class="fl g" style="width:100%"></span></span><span class="bv">1.00</span></div>
+        <div class="bar"><span class="bn">Flood</span><span class="tr"><span class="fl" style="width:25%"></span></span><span class="bv">.25</span></div>
+        <div class="bar"><span class="bn">Haze</span><span class="tr"><span class="fl" style="width:71%"></span></span><span class="bv">1.25</span></div>
+      </div></div></div>
+
+    <div class="lc"><div class="sky" style="background:linear-gradient(180deg,#43505c,#7c8a94 55%,#c3ccd1)"></div>
+      <div class="body"><div class="nm">Overcast</div><div class="sub">sun 34° / az 142°</div>
+      <div class="bars">
+        <div class="bar"><span class="bn">Light</span><span class="tr"><span class="fl" style="width:88%"></span></span><span class="bv">.88</span></div>
+        <div class="bar"><span class="bn">Warm</span><span class="tr"><span class="fl g" style="width:18%"></span></span><span class="bv">.18</span></div>
+        <div class="bar"><span class="bn">Flood</span><span class="tr"><span class="fl" style="width:30%"></span></span><span class="bv">.30</span></div>
+        <div class="bar"><span class="bn">Wet</span><span class="tr"><span class="fl" style="width:18%"></span></span><span class="bv">.18</span></div>
+      </div></div></div>
+
+    <div class="lc"><div class="sky" style="background:linear-gradient(180deg,#2e3944,#5b6874 55%,#98a4ad)"></div>
+      <div class="body"><div class="nm">Rain</div><div class="sub">sun 27° / az 155°</div>
+      <div class="bars">
+        <div class="bar"><span class="bn">Light</span><span class="tr"><span class="fl" style="width:80%"></span></span><span class="bv">.80</span></div>
+        <div class="bar"><span class="bn">Warm</span><span class="tr"><span class="fl g" style="width:10%"></span></span><span class="bv">.10</span></div>
+        <div class="bar"><span class="bn">Flood</span><span class="tr"><span class="fl" style="width:55%"></span></span><span class="bv">.55</span></div>
+        <div class="bar"><span class="bn">Wet</span><span class="tr"><span class="fl" style="width:72%"></span></span><span class="bv">.72</span></div>
+      </div></div></div>
+
+    <div class="lc"><div class="sky" style="background:linear-gradient(180deg,#070b14,#0e1626 55%,#1d2a3c)">
+      <span class="sun" style="left:16%;top:24%;background:radial-gradient(circle,#fff,rgba(255,255,255,.2) 55%,transparent 70%)"></span>
+      <span class="sun" style="right:16%;top:24%;background:radial-gradient(circle,#fff,rgba(255,255,255,.2) 55%,transparent 70%)"></span></div>
+      <div class="body"><div class="nm">Night</div><div class="sub">floods at full</div>
+      <div class="bars">
+        <div class="bar"><span class="bn">Light</span><span class="tr"><span class="fl" style="width:66%"></span></span><span class="bv">.66</span></div>
+        <div class="bar"><span class="bn">Warm</span><span class="tr"><span class="fl g" style="width:30%"></span></span><span class="bv">.30</span></div>
+        <div class="bar"><span class="bn">Flood</span><span class="tr"><span class="fl" style="width:100%"></span></span><span class="bv">1.00</span></div>
+        <div class="bar"><span class="bn">Haze</span><span class="tr"><span class="fl" style="width:49%"></span></span><span class="bv">.85</span></div>
+      </div></div></div>
+
+    <div class="lc"><div class="sky" style="background:linear-gradient(180deg,#060910,#101a28 55%,#1f2c3a)">
+      <span class="sun" style="left:16%;top:24%;background:radial-gradient(circle,#fff,rgba(255,255,255,.18) 52%,transparent 68%)"></span>
+      <span class="sun" style="right:16%;top:24%;background:radial-gradient(circle,#fff,rgba(255,255,255,.18) 52%,transparent 68%)"></span></div>
+      <div class="body"><div class="nm">Night rain</div><div class="sub">floods at full · wet .78</div>
+      <div class="bars">
+        <div class="bar"><span class="bn">Light</span><span class="tr"><span class="fl" style="width:62%"></span></span><span class="bv">.62</span></div>
+        <div class="bar"><span class="bn">Warm</span><span class="tr"><span class="fl g" style="width:20%"></span></span><span class="bv">.20</span></div>
+        <div class="bar"><span class="bn">Flood</span><span class="tr"><span class="fl" style="width:100%"></span></span><span class="bv">1.00</span></div>
+        <div class="bar"><span class="bn">Wet</span><span class="tr"><span class="fl" style="width:78%"></span></span><span class="bv">.78</span></div>
+      </div></div></div>
+  </div>
+
+  <div class="note warn"><span class="lbl">Sun elevation is a staging parameter, not weather</span>
+  <p>9° puts the roof lip's shadow across the pitch. Below ~6° the shadow swallows everything; above
+  ~12° the edge sits behind the camera and the effect is gone entirely. 40° is short shadows and a
+  flat, un-dramatic "just a football match" — correct for an early career level, and correct
+  nowhere else.</p></div>
+
+  <ul>
+    <li><strong>Never neutral.</strong> Every preset commits to a temperature. <code>warm</code>
+    never sits between 0.35 and 0.50 — that band is where a frame stops looking graded and starts
+    looking un-graded.</li>
+    <li><strong>Wet is a sheen, not a colour.</strong> It raises specular response and darkens the
+    turf slightly. It must never tint.</li>
+    <li><strong>Haze does the depth work.</strong> No fog colour is authored separately — haze pulls
+    distant geometry toward the sky's horizon colour, which is why each sky ramp has three stops.</li>
+    <li><strong>Floodlights and sun are exclusive in feel.</strong> Above <code>flood 0.55</code> the
+    pylons are the key and the sun is fill, and the grade follows: cooler shadows, harder falloff,
+    visible pylon flare.</li>
+    <li><strong>Lighting is presentation only.</strong> It never touches the ball — a level's
+    difficulty must not change because it got dark.</li>
+  </ul>
+
+  <div class="note stop"><span class="lbl">Three post-chain traps</span>
+  <p>RGBA16F needs <code>EXT_color_buffer_float</code> or it fails <strong>silently</strong>. Do not
+  run a full filmic tonemap over a display-referred scene — compress the top ~20% with a highlight
+  shoulder and leave the rest alone. Reprojected motion blur must skip camera cuts.</p></div>
+</section>
+
+<hr class="rule">
+
+<!-- ============ 05 ============ -->
+<section id="camera">
+  <h2><span class="num">05</span>Camera</h2>
+  <p class="lede">Twelve metres up, thirty metres back, tilted down 20°. Wide vertically, long-lens
+  horizontally — which is the whole reason the pitch reads as broadcast rather than fish-eye.</p>
+
+  <figure>
+    <svg viewBox="0 0 620 310" role="img" aria-label="Side elevation of the gameplay camera showing elevation angle and field of view">
+      <defs>
+        <linearGradient id="cone" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#0090ff" stop-opacity=".22"/><stop offset="1" stop-color="#0090ff" stop-opacity=".03"/>
+        </linearGradient>
+        <linearGradient id="gnd2" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#43a259" stop-opacity=".3"/><stop offset="1" stop-color="#43a259" stop-opacity="0"/>
+        </linearGradient>
+      </defs>
+      <!-- FOV cone -->
+      <polygon points="70,92 610,38 610,300 271,300" fill="url(#cone)"/>
+      <!-- ground -->
+      <rect x="0" y="260" width="620" height="34" fill="url(#gnd2)"/>
+      <line x1="0" y1="260" x2="620" y2="260" stroke="#43a259" stroke-width="1.6"/>
+      <!-- horizontal reference -->
+      <line x1="70" y1="92" x2="530" y2="92" stroke="#2a4359" stroke-width="1" stroke-dasharray="4 5"/>
+      <!-- view axis -->
+      <line x1="70" y1="92" x2="528" y2="260" stroke="#ffc233" stroke-width="1.6" stroke-dasharray="6 4"/>
+      <!-- fov rays -->
+      <line x1="70" y1="92" x2="610" y2="38" stroke="#38b0ff" stroke-width="1.4"/>
+      <line x1="70" y1="92" x2="271" y2="300" stroke="#38b0ff" stroke-width="1.4"/>
+      <!-- angle arc -->
+      <path d="M150 92 A 80 80 0 0 1 145 121" fill="none" stroke="#ffc233" stroke-width="1.4"/>
+      <text class="svg-hi" x="158" y="114">20.1°</text>
+      <!-- camera body -->
+      <g><rect x="52" y="80" width="30" height="20" rx="4" fill="#101f34" stroke="#38b0ff" stroke-width="1.6"/>
+         <polygon points="82,84 96,78 96,102 82,96" fill="#101f34" stroke="#38b0ff" stroke-width="1.6"/></g>
+      <!-- height dim -->
+      <line x1="40" y1="92" x2="40" y2="260" stroke="#5a7189" stroke-width="1"/>
+      <line x1="35" y1="92" x2="45" y2="92" stroke="#5a7189" stroke-width="1"/>
+      <line x1="35" y1="260" x2="45" y2="260" stroke="#5a7189" stroke-width="1"/>
+      <text class="svg-val" x="24" y="180" transform="rotate(-90 24 180)" text-anchor="middle">12 m</text>
+      <!-- distance dim -->
+      <line x1="70" y1="284" x2="490" y2="284" stroke="#5a7189" stroke-width="1"/>
+      <line x1="70" y1="279" x2="70" y2="289" stroke="#5a7189" stroke-width="1"/>
+      <line x1="490" y1="279" x2="490" y2="289" stroke="#5a7189" stroke-width="1"/>
+      <text class="svg-val" x="280" y="298" text-anchor="middle">30 m behind the target</text>
+      <!-- ball / target -->
+      <circle cx="490" cy="246" r="6" fill="#f2f7fc" stroke="#0b1728" stroke-width="1.2"/>
+      <text class="svg-lbl" x="490" y="234" text-anchor="middle" fill="#c3d2e0">Ball · look-at</text>
+      <!-- labels -->
+      <text class="svg-lbl" x="330" y="52" fill="#38b0ff">Upper ray −5.7° → the roof line enters frame</text>
+      <text class="svg-lbl" x="120" y="248" fill="#38b0ff">Lower ray 45.9°</text>
+      <text class="svg-val" x="120" y="234">near ground edge 11.6 m</text>
+      <text class="svg-hi" x="352" y="150">FOV 51.6° vertical · 24.5° horizontal</text>
+      <text class="svg-lbl" x="352" y="166" fill="#8199b0">≈ 90 mm lens across the frame</text>
+    </svg>
+    <figcaption><strong>The gameplay camera</strong>, live in <code>js/render.js</code>. Eye
+    <code>(0,&nbsp;20,&nbsp;12)</code>, look-at <code>(0,&nbsp;−10,&nbsp;1)</code>, focal length
+    900&nbsp;px over the portrait play area, near/far 0.30&nbsp;/&nbsp;400&nbsp;m. The upper ray
+    actually rises above horizontal — that is how the stadium roof gets into shot.</figcaption>
+  </figure>
+
+  <ol>
+    <li><strong>Elevation band 15°–25°.</strong> Below 15° the box markings collapse into each other
+    and the player cannot judge distance. Above 25° it becomes a top-down puzzle game and loses the
+    "you are the player" read. 20° is the middle, and where it stays.</li>
+    <li><strong>The ball is anchored low-centre so the thumb never covers it</strong> — roughly 35%
+    up from the bottom edge, because the aim line is drawn from the ball. This is the single
+    best-judged decision in the control scheme. Do not re-centre the ball.</li>
+    <li><strong>Push, never cut, during play.</strong> Cuts belong to replay and the miss post-mortem
+    only — and any cut must flag the motion-blur pass to skip that frame.</li>
+    <li><strong>Every camera move is solved, not keyframed.</strong> The miss camera is composed from
+    the actual ball end point and the goal; the replay angle is derived from the near post. Nothing
+    is hand-placed, because levels differ.</li>
+  </ol>
+
+  <h3>The camera beats</h3>
+  <div class="tw"><table>
+    <tr><th>Beat</th><th>Behaviour</th></tr>
+    <tr><td class="k">Strike</td><td>Fast lens push</td></tr>
+    <tr><td class="k">Pass</td><td>Slower push plus lateral drift</td></tr>
+    <tr><td class="k">Goal</td><td>Goal sequence, then replay</td></tr>
+    <tr><td class="k">Replay</td><td>0.45× speed, low angle behind the near post, broadcast banner, holds on the final frame</td></tr>
+    <tr><td class="k">Miss</td><td>Frames the goal and the ball's end point together — flight line, the keeper's committed dive arc, and the miss distance in centimetres</td></tr>
+  </table></div>
+  <div class="note warn"><span class="lbl">◆ Target</span><p>Half-time and full-time stings. Kickoff
+  card, goal sequence, replay and miss post-mortem all exist; the rest of the broadcast furniture
+  does not.</p></div>
+</section>
+
+<hr class="rule">
+
+<!-- ============ 06 ============ -->
+<section id="anim">
+  <h2><span class="num">06</span>Animation</h2>
+  <p class="lede">Thirteen clips, hand-authored as sparse pose dictionaries. Pairwise crossfade only
+  — no blend trees, deliberately.</p>
+
+  <div class="clips">
+    <div class="clip"><span class="cn">idle</span><span class="ct"><span class="cf" style="width:100%"></span></span><span class="cd">3.40 s</span><span class="cl">↻</span></div>
+    <div class="clip"><span class="cn">brace</span><span class="ct"><span class="cf" style="width:64.7%"></span></span><span class="cd">2.20 s</span><span class="cl">↻</span></div>
+    <div class="clip"><span class="cn">celebrate2</span><span class="ct"><span class="cf" style="width:39.7%"></span></span><span class="cd">1.35 s</span><span class="cl">↻</span></div>
+    <div class="clip"><span class="cn">keeperSet</span><span class="ct"><span class="cf" style="width:36.8%"></span></span><span class="cd">1.25 s</span><span class="cl">↻</span></div>
+    <div class="clip"><span class="cn">celebrate</span><span class="ct"><span class="cf" style="width:32.4%"></span></span><span class="cd">1.10 s</span><span class="cl">↻</span></div>
+    <div class="clip"><span class="cn">run</span><span class="ct"><span class="cf" style="width:29.4%"></span></span><span class="cd">1.00 s</span><span class="cl">↻</span></div>
+    <div class="clip"><span class="cn">celebrate3</span><span class="ct"><span class="cf" style="width:27.1%"></span></span><span class="cd">0.92 s</span><span class="cl">↻</span></div>
+    <div class="clip"><span class="cn">diveL / R</span><span class="ct"><span class="cf act" style="width:18.2%"></span></span><span class="cd">0.62 s</span><span class="cl">—</span></div>
+    <div class="clip"><span class="cn">receive</span><span class="ct"><span class="cf act" style="width:13.5%"></span></span><span class="cd">0.46 s</span><span class="cl">—</span></div>
+    <div class="clip"><span class="cn">strike</span><span class="ct"><span class="cf act" style="width:12.4%"></span></span><span class="cd">0.42 s</span><span class="cl">—</span></div>
+    <div class="clip"><span class="cn">chip</span><span class="ct"><span class="cf act" style="width:11.8%"></span></span><span class="cd">0.40 s</span><span class="cl">—</span></div>
+    <div class="clip"><span class="cn">pass</span><span class="ct"><span class="cf act" style="width:10.0%"></span></span><span class="cd">0.34 s</span><span class="cl">—</span></div>
+  </div>
+  <p style="font-size:13.5px;color:var(--dim2)">Gold = one-shot action clip · blue = looping ·
+  ↻ carries a per-player phase offset where marked</p>
+
+  <ol>
+    <li><strong>Pairwise crossfade only. No blend trees.</strong> A deliberate ceiling, and enough at
+    this camera distance. Any clip that only works blended three ways is the wrong clip.</li>
+    <li><strong>Amplitude scaling, not clip switching.</strong> <code>Animator.amp</code> /
+    <code>scalePose</code> scale strike, chip and pass by the power of the kick, so a tap and a
+    30&nbsp;m/s drive do not play identically. This is the cheapest realism in the whole system —
+    new action clips use it rather than shipping soft/medium/hard variants.</li>
+    <li><strong>Contact frames are the only frames that matter.</strong> <code>strike</code> is
+    0.42&nbsp;s — about 25 frames — and gets five keys: plant down, hips loaded, contact at ≈0.26,
+    follow through, settle. Adding keys between them buys nothing at 90&nbsp;px.</li>
+    <li><strong>Anticipation is compressed to almost nothing.</strong> The animation is feedback for
+    a swipe that has <em>already happened</em>, so the strike leads with the plant already down. A
+    real 12-frame wind-up would read as input lag.</li>
+    <li><strong>Nothing idles in unison.</strong> Eleven players breathing together is the strongest
+    possible tell that they are instanced.</li>
+    <li><strong>Sim reports, presentation interprets.</strong> The simulation pushes named cues —
+    <code>bounce</code>, <code>post</code>, <code>save</code>, <code>block</code>,
+    <code>deflect</code>, <code>net</code> — and has no idea what any of them look or sound like.
+    Animation reacts to cues; it never reaches back.</li>
+  </ol>
+
+  <div class="note warn"><span class="lbl">◆ Target — animation debt</span>
+  <p>No walk or jog, so standing-to-running is a crossfade across a gap — a 1.2&nbsp;s
+  <code>jog</code> would close it. No tackle, block reaction or shoulder-barge. No half-time or
+  full-time body language.</p></div>
+</section>
+
+<hr class="rule">
+
+<!-- ============ 07 ============ -->
+<section id="ui">
+  <h2><span class="num">07</span>Interface</h2>
+  <p class="lede">Condensed sports type on frosted glass over a lit scene. An 8-pixel spacing scale,
+  four radii, tabular numerals everywhere.</p>
+
+  <div class="spec">
+    <div class="sp"><div class="lb">Primary button · 56 px</div>
+      <div class="btn-demo">Take the shot</div></div>
+    <div class="sp"><div class="lb">Scorebug · 42 px</div>
+      <div class="scorebug"><span class="bar4"></span><span class="side">HAV</span>
+      <span class="sc">2 – 1</span><span class="side">GRA</span><span class="min">78'</span></div></div>
+    <div class="sp"><div class="lb">Type ramp · tracking rises as size falls</div>
+      <div class="ramp">
+        <div style="font-size:26px;font-weight:700;text-transform:uppercase">Full time<span>26 / 700</span></div>
+        <div style="font-size:17px;font-weight:700;font-variant-numeric:tabular-nums">2 – 1<span>17 / tnum</span></div>
+        <div style="font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase">Havenbrook<span>13 / .08em</span></div>
+        <div style="font-size:10.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#ffc233">FA Cup R4<span>10.5 / .14em</span></div>
+      </div></div>
+    <div class="sp"><div class="lb">Spacing scale · 8 px base</div>
+      <div class="scale">
+        <i style="height:8%"><em>4</em></i><i style="height:16%"><em>8</em></i><i style="height:25%"><em>12</em></i>
+        <i style="height:33%"><em>16</em></i><i style="height:50%"><em>24</em></i><i style="height:67%"><em>32</em></i>
+        <i style="height:100%"><em>48</em></i>
+      </div></div>
+  </div>
+
+  <ol>
+    <li><strong>Condensed, or it is not this game.</strong> <code>font-stretch: 92%</code> drives the
+    variable system faces where a named condensed family is not installed — that is what stops the
+    identity collapsing to plain San Francisco on iOS. <span style="color:var(--g400)">◆ Target:
+    bundle a real webfont.</span> Small work, disproportionate effect.</li>
+    <li><strong>Tabular numerals everywhere, always.</strong> A score or clock that reflows as digits
+    change is the cheapest possible way to look unfinished.</li>
+    <li><strong>Tracking rises as size falls.</strong> 17&nbsp;px score → normal; 13&nbsp;px team
+    label → <code>.08em</code>; 10.5&nbsp;px minute → <code>.14em</code>. Small condensed type
+    without tracking is unreadable at arm's length.</li>
+    <li><strong>One card treatment.</strong> 4.5% white panel, a 1&nbsp;px hairline at 9% white,
+    <code>backdrop-filter: blur(16px)</code>, deep soft shadow. Every panel in the game is this.
+    Depth comes from blur and shadow, never from a second background colour.</li>
+    <li><strong>56&nbsp;px is the button.</strong> Below 48&nbsp;px it fails a thumb. Inner top
+    highlight, slow travelling specular, and it is the only primary button.</li>
+    <li><strong>The HUD is glass over a lit scene.</strong> It must never become opaque — the moment
+    it does, the 3D behind it stops being the subject.</li>
+    <li><strong>Shield crests, never circles.</strong> The crest shape is club identity, and it is
+    the same shape at every size.</li>
+  </ol>
+
+  <p><strong>The screens:</strong> match HUD · level select with difficulty pips derived from
+  measured win rates · pre-match brief · result card · career (levels, skills, achievements) ·
+  settings. Regenerate <code>ui-preview.html</code> from the real stylesheet to review any of them —
+  DOM screenshots are impossible in the dev environment.</p>
+</section>
+
+<hr class="rule">
+
+<!-- ============ 08 ============ -->
+<section id="prompts">
+  <h2><span class="num">08</span>Image prompts</h2>
+  <div class="note stop"><span class="lbl">Read this before generating anything</span>
+  <p>These are <strong>concept and reference prompts, not a texture pipeline</strong>. Nothing
+  generated here drops into the game as-is: kits are painted at runtime from a greyscale atlas plus
+  a tint mask, and the environment is procedural. Use them to lock a look before authoring in
+  Blender, and as reference underlays while modelling.</p></div>
+
+  <div class="shared">
+    <div class="lb">Append to every prompt</div>
+    <code>--style raw --ar 3:2 · palette: navy #0b1728, electric blue #0090ff, gold #ffc233, turf #43a259 / #2f7f45, home red #d8324a, away blue #5566d8</code>
+    <div class="lb neg" style="margin-top:13px">Negative prompt, every time</div>
+    <code>chibi, big head, cartoon mascot, cel shading, flat vector, toon outline, traffic-light green grass, mint green pitch, pure black, pure white, lens flare spam, watermark, text artifacts, fisheye, wide-angle distortion</code>
+  </div>
+
+  <h3>Key art &amp; characters</h3>
+  <div class="pgrid">
+    <div class="pr"><div class="ph"><span class="pn">8.1</span><span class="pt">Master key art</span></div>
+      <div class="pb">Cinematic still from a modern mobile football game. A single footballer in a deep red
+      one-colour shirt with white trim and white shorts strikes a ball from the edge of the penalty area,
+      seen from behind and slightly above at a <b>20-degree elevation</b>. Portrait framing, long-lens
+      compression across the pitch. Dark cool striped turf, a continuous rounded stadium bowl with a
+      cantilevered roof, 25,000 spectators reading as low-saturation mass. Late afternoon sun at
+      <b>9 degrees</b> throwing a hard shadow line from the roof lip diagonally across the grass.
+      Broadcast colour grade, gentle bloom on the highlights, shallow depth of field behind the player.
+      Photoreal, physically lit, not stylised.</div></div>
+
+    <div class="pr"><div class="ph"><span class="pn">8.2</span><span class="pt">Outfield player — home kit sheet</span></div>
+      <div class="pb">Character reference sheet for a game-ready footballer. Front, three-quarter, side and
+      back orthographic views on a neutral grey field. Athletic build, <b>7.2 heads tall</b>,
+      shoulder-to-hip taper of roughly 1.7 to 1. Deep red <b>#d8324a</b> short-sleeved shirt with thin
+      white trim at collar and cuff, white <b>#f0f4f8</b> shorts, red socks, dark boots <b>#191c22</b>
+      with a bright mint-green flash on the upper. Squad number 9 on the back. Short dark hair. Neutral
+      A-pose with arms slightly out. Clean even studio lighting, no dramatic shadows, no background.
+      Modelling reference, orthographic, no perspective distortion.</div></div>
+
+    <div class="pr"><div class="ph"><span class="pn">8.3</span><span class="pt">Outfield player — away kit sheet</span></div>
+      <div class="pb">Orthographic character reference sheet, same athletic proportions as above.
+      Periwinkle blue <b>#5566d8</b> one-colour shirt with white trim, navy <b>#2b3492</b> shorts and
+      socks, dark boots with a magenta flash. Squad number 4. Different hairstyle — short curls. Neutral
+      A-pose, studio lighting, grey field.</div></div>
+
+    <div class="pr"><div class="ph"><span class="pn">8.4</span><span class="pt">Goalkeeper</span></div>
+      <div class="pb">Orthographic character reference sheet for a football goalkeeper, same athletic
+      <b>7.2-head</b> proportions. Teal <b>#25b596</b> long-sleeved shirt, dark teal <b>#12705c</b> shorts
+      and socks, padded gloves in off-white, dark boots. Set position: knees soft, weight forward, hands
+      out at hip height, eyes up. Front, side and three-quarter views. Studio lighting, grey field, no
+      background.</div></div>
+
+    <div class="pr"><div class="ph"><span class="pn">8.5</span><span class="pt">Head &amp; hairstyle variants</span></div>
+      <div class="pb">Four male footballer heads in a row, three-quarter view, matched lighting and scale.
+      Left to right: short fade, medium textured crop, short curls, tied-back long hair. Four different
+      skin tones spanning light olive to deep brown. Athletic, mid-twenties, neutral expression, no
+      beards. <b>Simplified planar structure suitable for a low-polygon game head</b> — brow, cheek and
+      jaw read as clear planes, not fine detail. Even studio light, grey background.</div></div>
+
+    <div class="pr"><div class="ph"><span class="pn">8.6</span><span class="pt">Boots</span></div>
+      <div class="pb">Product photograph of a modern football boot, three-quarter view. Matte near-black
+      upper <b>#191c22</b> with a single bright mint-green <b>#00e5a0</b> flash sweeping from the midfoot
+      to the heel, subtle stud pattern on a slightly lighter sole. Clean studio lighting on a dark grey
+      seamless background. Sharp focus, no branding, no logos, no text.</div></div>
+
+    <div class="pr"><div class="ph"><span class="pn">8.7</span><span class="pt">Kit texture atlas</span></div>
+      <div class="pb">Flat orthographic layout of football kit panels arranged as a texture atlas on a
+      white background: short-sleeved shirt front, shirt back with a large squad number, two sleeve
+      panels, shorts front, shorts back, sock. Rendered in flat mid-grey with only fabric shading, seams,
+      stitch lines, ribbed collar and ventilation mesh — <b>no colour at all, greyscale only, so it can
+      be tinted</b>. Even lighting, no shadows, no perspective.</div></div>
+  </div>
+
+  <h3>Environment</h3>
+  <div class="pgrid">
+    <div class="pr"><div class="ph"><span class="pn">8.8</span><span class="pt">Stadium bowl — wide interior</span></div>
+      <div class="pb">Wide interior view of a modern 25,000-seat football stadium from a corner, taken
+      from high in the stand. <b>One continuous bowl with generously rounded corners — not four separate
+      stands.</b> A single steep tier raked at about 29 degrees, 26 rows, topped by a cantilevered roof
+      overhanging 15 metres. Dark striped turf below, low white perimeter wall with pale advertising
+      boards. Full crowd reading as low-saturation texture, no individual faces. Overcast even light.
+      Architectural photography, photoreal, wide framing without distortion.</div></div>
+
+    <div class="pr"><div class="ph"><span class="pn">8.9</span><span class="pt">Stadium bowl — two-tier target</span></div>
+      <div class="pb">Interior of a modern football stadium showing the seating structure in section: a
+      lower tier of raked seating, a horizontal facia band at roughly 7 metres carrying club banners and
+      a slim LED scoreboard, then a shallower upper tier above it, then a cantilevered roof. Rounded
+      corner where two sides meet. Empty seats in dark navy, structural steel and cool grey concrete
+      <b>#20262e</b>. Architectural reference, clear structural read, flat daylight, no crowd.</div></div>
+
+    <div class="pr"><div class="ph"><span class="pn">8.10</span><span class="pt">Roof &amp; floodlight</span></div>
+      <div class="pb">Detail of a cantilevered stadium roof seen from below and behind, showing the steel
+      truss structure, the underside cladding, and a row of floodlight fittings mounted along the front
+      lip. Late golden light raking across the structure from the left; <b>the roof lip casts a hard
+      shadow edge</b>. Architectural detail photography, cool grey steel, warm light, no background
+      clutter.</div></div>
+
+    <div class="pr"><div class="ph"><span class="pn">8.11</span><span class="pt">Pitch-side props</span></div>
+      <div class="pb">Football pitch-side props on a neutral grey field, arranged in a row, orthographic:
+      a corner flag with a plain triangular flag on a flexible pole, a covered team dugout with six seats
+      and a curved perspex roof, a floodlight pylon base, and a low white perimeter wall section with a
+      blank advertising board. Clean even lighting, modelling reference, no background, no logos, no
+      text.</div></div>
+
+    <div class="pr"><div class="ph"><span class="pn">8.12</span><span class="pt">Turf &amp; mow stripes</span></div>
+      <div class="pb">Overhead close-up of a professional football pitch surface. Dark cool green grass
+      <b>#2f7f45</b> and <b>#43a259</b> in alternating mow bands running across frame, a crisp painted
+      white line crossing at an angle, individual blade texture visible but <b>the bands clearly
+      separated in value</b>. Slightly damp, low specular sheen. Even overcast light, photoreal, no
+      players, no shadows.</div></div>
+
+    <div class="pr"><div class="ph"><span class="pn">8.13</span><span class="pt">Goal frame &amp; net</span></div>
+      <div class="pb">Football goal photographed square-on from the front at pitch level. Rounded white
+      posts and crossbar, a translucent white net with visible sag hung from a curved frame, the back
+      panel of the net denser than the sides. Dark striped grass in front. Soft overcast light so
+      <b>the net reads as volume rather than lines</b>. Photoreal, shallow depth of field on the
+      background, no crowd.</div></div>
+
+    <div class="pr"><div class="ph"><span class="pn">8.22</span><span class="pt">Crowd reference</span></div>
+      <div class="pb">Dense football crowd in a stadium stand, photographed from a distance with a long
+      lens so <b>no individual face is identifiable</b>. Mixed muted clothing colours — dusty reds,
+      off-whites, tans, navy, grey — reading as a speckled low-saturation texture rather than as people.
+      Slightly out of focus, even overcast light, no banners, no text.</div></div>
+
+    <div class="pr"><div class="ph"><span class="pn">8.23</span><span class="pt">Ball</span></div>
+      <div class="pb">Studio product photograph of a modern football, three-quarter view. Mostly white
+      panelled surface with a small amount of electric blue <b>#0090ff</b> and gold <b>#ffc233</b>
+      geometric detailing, subtle textured grain on the panels, soft specular highlights. Clean dark grey
+      seamless background, even softbox lighting, sharp focus, no branding, no logos, no text.</div></div>
+  </div>
+
+  <h3>Lighting states</h3>
+  <div class="pgrid">
+    <div class="pr"><div class="ph"><span class="pn">8.14</span><span class="pt">Afternoon</span></div>
+      <div class="pb">Football pitch in bright mid-afternoon sun, sun <b>40 degrees</b> above the horizon.
+      Short hard shadows directly under the players, a clear sky ramp from <b>#1f4f78</b> at zenith to
+      <b>#e2edee</b> at the horizon, crisp saturated colour, minimal haze. Neutral-warm grade. Broadcast
+      still, photoreal.</div></div>
+
+    <div class="pr"><div class="ph"><span class="pn">8.15</span><span class="pt">Golden hour ★ hero condition</span></div>
+      <div class="pb">Football pitch at golden hour, sun <b>9 degrees</b> above the horizon and low behind
+      the stand. <b>The stadium roof lip throws a hard diagonal shadow edge across the grass</b>,
+      brilliant warm light on the far half and cool shadow on the near half. Sky ramping from
+      <b>#243f6b</b> at zenith through <b>#b3763f</b> to <b>#f5cf9a</b> at the horizon. Long player
+      shadows, warm rim light on every figure, visible atmospheric haze at the far end. Broadcast still,
+      photoreal, strong grade.</div></div>
+
+    <div class="pr"><div class="ph"><span class="pn">8.16</span><span class="pt">Overcast</span></div>
+      <div class="pb">Football pitch under heavy overcast, no visible sun. Flat, soft, directionless
+      light, cool desaturated grade, <b>#43505c</b> to <b>#c3ccd1</b> sky. Faintly damp turf with a low
+      sheen, no hard shadows anywhere, floodlights on at low power adding a slightly warmer fill. Muted,
+      moody, photoreal broadcast still.</div></div>
+
+    <div class="pr"><div class="ph"><span class="pn">8.17</span><span class="pt">Night, floodlit, wet</span></div>
+      <div class="pb">Football pitch at night in the rain, lit entirely by four floodlight pylons.
+      Near-black <b>#060910</b> sky, brilliant white pooled light on a soaked pitch, strong specular
+      streaks reflecting off the wet grass, visible rain streaks catching the beams, breath and spray.
+      Cool grade with hard falloff into the shadows, crowd reading only as a dim speckled mass beyond the
+      light. Dramatic, photoreal, broadcast still.</div></div>
+  </div>
+
+  <h3>Framing &amp; interface</h3>
+  <div class="pgrid">
+    <div class="pr"><div class="ph"><span class="pn">8.18</span><span class="pt">Camera framing reference</span></div>
+      <div class="pb">Portrait 9:19.5 framing reference for a mobile football game. Camera <b>12 metres
+      above the pitch and 30 metres behind the ball, tilted down 20 degrees</b>, long lens so the pitch
+      compresses. The ball sits <b>35% up from the bottom edge</b>, the goal mouth in the upper third, the
+      stadium roof line just entering the top of frame. Faint composition guides overlaid. Clean,
+      technical, photoreal underlay.</div></div>
+
+    <div class="pr"><div class="ph"><span class="pn">8.19</span><span class="pt">UI — match HUD</span></div>
+      <div class="pb">Mobile game UI overlay on a dark navy football scene, portrait phone screen. Top
+      left: a compact glass scorebug 42 px tall with a 4 px electric-blue vertical bar, two three-letter
+      team codes in condensed bold uppercase, a score block, and a match minute in gold. Beside it, a
+      level tag chip. Bottom: a row of touch pips and a rewind button. All panels are <b>frosted glass at
+      4.5% white over the scene</b> with a 1 px hairline border, 10 px corner radius, deep soft drop
+      shadow. Condensed sports typography, tabular numerals, tight tracking. Flat UI design, dark navy
+      <b>#0b1728</b>, electric blue <b>#0090ff</b>, gold <b>#ffc233</b>.</div></div>
+
+    <div class="pr"><div class="ph"><span class="pn">8.20</span><span class="pt">UI — level select</span></div>
+      <div class="pb">Mobile game level-select screen, portrait, dark navy background. A vertical list of
+      match cards, each 16 px radius frosted glass with a 1 px hairline border, showing a <b>shield
+      crest</b>, an opponent name in condensed bold uppercase, a competition label in small dimmed
+      tracked-out caps, a row of three star slots in gold, and five small difficulty pips on the right
+      with two filled. One card in the list has its pips in red as a warning. A 56 px electric-blue
+      primary button at the bottom with a subtle inner top highlight. Clean flat UI, 8 px spacing grid,
+      generous whitespace.</div></div>
+
+    <div class="pr"><div class="ph"><span class="pn">8.21</span><span class="pt">UI — result card</span></div>
+      <div class="pb">Mobile game result screen, portrait, dark navy. A large centred card with three gold
+      stars across the top, two filled and one empty, a big condensed uppercase headline, a small stat
+      block below in two columns with tabular numerals, an XP progress bar in electric blue with a gold
+      fill segment, and two stacked 56 px buttons — a filled blue primary and a ghost secondary with a
+      hairline border. Frosted glass panels, 22 px radius, deep soft shadows, condensed sports
+      typography. Flat UI design.</div></div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section id="scope">
+  <h2><span class="num">09</span>Scope &amp; change control</h2>
+  <p class="lede">What this guide deliberately does not cover, and what cannot be changed without a
+  redesign.</p>
+
+  <h3>Out of reach — blocked on assets that do not exist</h3>
+  <ul>
+    <li><strong>Photographic textures.</strong> Everything is procedural or runtime-painted.</li>
+    <li><strong>Recorded commentary and PA.</strong> A synth cannot fake it — a content problem, not
+    a code one.</li>
+    <li><strong>Reflections</strong> beyond the wet-sheen specular approximation.</li>
+    <li><strong>Cloth simulation.</strong> Shirts and nets are rigid or vertex-animated.</li>
+  </ul>
+  <p>Do not propose a feature that depends on one of these without saying where the asset comes from.</p>
+
+  <div class="note stop"><span class="lbl">Identity — changing any of these is a redesign, not a tweak</span>
+  <p>The <strong>locked ratios</strong> (§02), the <strong>camera</strong> (§05), and the
+  <strong>three-hue rule</strong> (§01). Changing one invalidates every screenshot and every other
+  section of this document. Everything else is open to iteration.</p></div>
+
+  <p>After changing world colour or lighting, capture with the <code>js/shot.js</code> harness and
+  <strong>look at the frame</strong>. Numbers passing is not the same as it looking right — several
+  real bugs in this project passed every numeric check.</p>
+</section>
+
+<footer>
+  goal.io art style guide · v1 · every live value cited from <code>config/*.json</code>,
+  <code>js/anim.js</code>, <code>js/render.js</code> and <code>js/render.gl.js</code>.
+  Canonical copy: <code>goal.io/docs/ART-STYLE.md</code>.
+</footer>
+
+</div>
+
+</body>
+</html>

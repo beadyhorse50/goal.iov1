@@ -37,6 +37,13 @@ Not part of the game, one level up: `football-characters/` (four rigged glTF
 footballers for Unity — a separate deliverable, referenced by
 `docs/UNITY-MIGRATION.md`).
 
+## Starting a session somewhere else
+
+If a chat starts outside this folder — claude.ai, a fresh window, another
+machine — paste **`docs/BRIEFING.md`** into it. It is a single self-contained
+brief covering architecture, environment, verification, traps and current
+state, so nothing below has to be read first.
+
 ## Read these before changing anything
 
 - **`docs/HANDOVER.md`** — the full picture: what works, what is broken, and a list

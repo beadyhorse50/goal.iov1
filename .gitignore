@@ -12,3 +12,5 @@ __pycache__/
 .DS_Store
 career-preview.html
 build/
+# machine-specific absolute path to uvx; see docs/BLENDER.md
+.mcp.json
